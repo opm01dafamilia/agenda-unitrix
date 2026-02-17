@@ -4,15 +4,29 @@ import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSent(true);
-    // TODO: supabase.auth.resetPasswordForEmail
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setSent(true);
+      toast.success("Link de recuperação enviado!");
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -31,38 +45,18 @@ const ForgotPassword = () => {
               <span className="text-primary text-xl">✉️</span>
             </div>
             <p className="font-medium mb-2">Email enviado!</p>
-            <p className="text-sm text-muted-foreground mb-6">
-              Verifique sua caixa de entrada para o link de redefinição.
-            </p>
-            <Link to="/login">
-              <Button variant="outline">Voltar ao login</Button>
-            </Link>
+            <p className="text-sm text-muted-foreground mb-6">Verifique sua caixa de entrada para o link de redefinição.</p>
+            <Link to="/login"><Button variant="outline">Voltar ao login</Button></Link>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label>Email</Label>
-              <Input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                required
-              />
-            </div>
-            <Button type="submit" className="w-full">
-              Enviar link de recuperação
-            </Button>
+            <div><Label>Email</Label><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required /></div>
+            <Button type="submit" className="w-full" disabled={loading}>{loading ? "Enviando..." : "Enviar link de recuperação"}</Button>
           </form>
         )}
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          <Link
-            to="/login"
-            className="text-primary hover:underline inline-flex items-center gap-1"
-          >
-            <ArrowLeft className="w-3 h-3" /> Voltar ao login
-          </Link>
+          <Link to="/login" className="text-primary hover:underline inline-flex items-center gap-1"><ArrowLeft className="w-3 h-3" /> Voltar ao login</Link>
         </p>
       </div>
     </div>
