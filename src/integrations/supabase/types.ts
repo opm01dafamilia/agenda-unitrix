@@ -14,16 +14,569 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      appointments: {
+        Row: {
+          appointment_date: string
+          body_location: string | null
+          business_id: string
+          client_city: string | null
+          client_cpf: string | null
+          client_email: string | null
+          client_id: string | null
+          client_name: string | null
+          client_whatsapp: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          end_time: string | null
+          has_previous_tattoo: boolean | null
+          id: string
+          observations: string | null
+          professional_id: string | null
+          reference_photo_url: string | null
+          service_id: string | null
+          size_cm: number | null
+          start_time: string
+          status: Database["public"]["Enums"]["appointment_status"]
+          tattoo_value: number | null
+          updated_at: string
+        }
+        Insert: {
+          appointment_date: string
+          body_location?: string | null
+          business_id: string
+          client_city?: string | null
+          client_cpf?: string | null
+          client_email?: string | null
+          client_id?: string | null
+          client_name?: string | null
+          client_whatsapp?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          end_time?: string | null
+          has_previous_tattoo?: boolean | null
+          id?: string
+          observations?: string | null
+          professional_id?: string | null
+          reference_photo_url?: string | null
+          service_id?: string | null
+          size_cm?: number | null
+          start_time: string
+          status?: Database["public"]["Enums"]["appointment_status"]
+          tattoo_value?: number | null
+          updated_at?: string
+        }
+        Update: {
+          appointment_date?: string
+          body_location?: string | null
+          business_id?: string
+          client_city?: string | null
+          client_cpf?: string | null
+          client_email?: string | null
+          client_id?: string | null
+          client_name?: string | null
+          client_whatsapp?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          end_time?: string | null
+          has_previous_tattoo?: boolean | null
+          id?: string
+          observations?: string | null
+          professional_id?: string | null
+          reference_photo_url?: string | null
+          service_id?: string | null
+          size_cm?: number | null
+          start_time?: string
+          status?: Database["public"]["Enums"]["appointment_status"]
+          tattoo_value?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      businesses: {
+        Row: {
+          address_complement: string | null
+          address_neighborhood: string | null
+          address_number: string | null
+          address_street: string | null
+          address_zip: string | null
+          auto_accept_appointments: boolean | null
+          avatar_url: string | null
+          city: string | null
+          cpf: string
+          created_at: string
+          email: string
+          grace_period_until: string | null
+          id: string
+          industry: Database["public"]["Enums"]["industry_type"]
+          message_template_client: string | null
+          message_template_professional: string | null
+          name: string
+          operating_hours: Json | null
+          owner_id: string
+          premium_plan: string | null
+          premium_status: Database["public"]["Enums"]["premium_status"] | null
+          premium_until: string | null
+          slug: string
+          theme_primary_color: string | null
+          theme_secondary_color: string | null
+          updated_at: string
+          whatsapp: string
+        }
+        Insert: {
+          address_complement?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_street?: string | null
+          address_zip?: string | null
+          auto_accept_appointments?: boolean | null
+          avatar_url?: string | null
+          city?: string | null
+          cpf: string
+          created_at?: string
+          email: string
+          grace_period_until?: string | null
+          id?: string
+          industry: Database["public"]["Enums"]["industry_type"]
+          message_template_client?: string | null
+          message_template_professional?: string | null
+          name: string
+          operating_hours?: Json | null
+          owner_id: string
+          premium_plan?: string | null
+          premium_status?: Database["public"]["Enums"]["premium_status"] | null
+          premium_until?: string | null
+          slug: string
+          theme_primary_color?: string | null
+          theme_secondary_color?: string | null
+          updated_at?: string
+          whatsapp: string
+        }
+        Update: {
+          address_complement?: string | null
+          address_neighborhood?: string | null
+          address_number?: string | null
+          address_street?: string | null
+          address_zip?: string | null
+          auto_accept_appointments?: boolean | null
+          avatar_url?: string | null
+          city?: string | null
+          cpf?: string
+          created_at?: string
+          email?: string
+          grace_period_until?: string | null
+          id?: string
+          industry?: Database["public"]["Enums"]["industry_type"]
+          message_template_client?: string | null
+          message_template_professional?: string | null
+          name?: string
+          operating_hours?: Json | null
+          owner_id?: string
+          premium_plan?: string | null
+          premium_status?: Database["public"]["Enums"]["premium_status"] | null
+          premium_until?: string | null
+          slug?: string
+          theme_primary_color?: string | null
+          theme_secondary_color?: string | null
+          updated_at?: string
+          whatsapp?: string
+        }
+        Relationships: []
+      }
+      clients: {
+        Row: {
+          business_id: string
+          city: string | null
+          cpf: string
+          created_at: string
+          email: string | null
+          id: string
+          name: string
+          neighborhood: string | null
+          updated_at: string
+          whatsapp: string
+        }
+        Insert: {
+          business_id: string
+          city?: string | null
+          cpf: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name: string
+          neighborhood?: string | null
+          updated_at?: string
+          whatsapp: string
+        }
+        Update: {
+          business_id?: string
+          city?: string | null
+          cpf?: string
+          created_at?: string
+          email?: string | null
+          id?: string
+          name?: string
+          neighborhood?: string | null
+          updated_at?: string
+          whatsapp?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "clients_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "clients_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      gallery_images: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          image_url: string
+          sort_order: number | null
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          image_url: string
+          sort_order?: number | null
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          image_url?: string
+          sort_order?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "gallery_images_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "gallery_images_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      professionals: {
+        Row: {
+          active: boolean | null
+          business_id: string
+          created_at: string
+          id: string
+          name: string
+          whatsapp: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          business_id: string
+          created_at?: string
+          id?: string
+          name: string
+          whatsapp?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          business_id?: string
+          created_at?: string
+          id?: string
+          name?: string
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professionals_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professionals_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name?: string | null
+          id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      services: {
+        Row: {
+          active: boolean | null
+          business_id: string
+          created_at: string
+          duration_minutes: number
+          id: string
+          name: string
+          price: number | null
+        }
+        Insert: {
+          active?: boolean | null
+          business_id: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          name: string
+          price?: number | null
+        }
+        Update: {
+          active?: boolean | null
+          business_id?: string
+          created_at?: string
+          duration_minutes?: number
+          id?: string
+          name?: string
+          price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trial_codes: {
+        Row: {
+          code: string
+          created_at: string
+          created_by: string | null
+          email: string
+          expires_at: string
+          id: string
+          used: boolean | null
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          created_by?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          used?: boolean | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          created_by?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          used?: boolean | null
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
+      webhook_logs: {
+        Row: {
+          created_at: string
+          email: string | null
+          error_message: string | null
+          event_type: string
+          id: string
+          plan_applied: string | null
+          raw_payload: Json | null
+          status_processing: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          error_message?: string | null
+          event_type: string
+          id?: string
+          plan_applied?: string | null
+          raw_payload?: Json | null
+          status_processing?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          error_message?: string | null
+          event_type?: string
+          id?: string
+          plan_applied?: string | null
+          raw_payload?: Json | null
+          status_processing?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
-      [_ in never]: never
+      businesses_public: {
+        Row: {
+          auto_accept_appointments: boolean | null
+          avatar_url: string | null
+          city: string | null
+          id: string | null
+          industry: Database["public"]["Enums"]["industry_type"] | null
+          name: string | null
+          operating_hours: Json | null
+          slug: string | null
+          theme_primary_color: string | null
+          theme_secondary_color: string | null
+        }
+        Insert: {
+          auto_accept_appointments?: boolean | null
+          avatar_url?: string | null
+          city?: string | null
+          id?: string | null
+          industry?: Database["public"]["Enums"]["industry_type"] | null
+          name?: string | null
+          operating_hours?: Json | null
+          slug?: string | null
+          theme_primary_color?: string | null
+          theme_secondary_color?: string | null
+        }
+        Update: {
+          auto_accept_appointments?: boolean | null
+          avatar_url?: string | null
+          city?: string | null
+          id?: string | null
+          industry?: Database["public"]["Enums"]["industry_type"] | null
+          name?: string | null
+          operating_hours?: Json | null
+          slug?: string | null
+          theme_primary_color?: string | null
+          theme_secondary_color?: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
-      [_ in never]: never
+      get_user_business_id: { Args: { _user_id: string }; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      is_admin_user: { Args: { _user_id: string }; Returns: boolean }
+      is_business_owner: {
+        Args: { _business_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "adm" | "premium"
+      appointment_status: "pending" | "confirmed" | "cancelled" | "completed"
+      industry_type: "tattoo" | "barber" | "salon"
+      premium_status: "active" | "past_due" | "inactive" | "trial"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +703,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["adm", "premium"],
+      appointment_status: ["pending", "confirmed", "cancelled", "completed"],
+      industry_type: ["tattoo", "barber", "salon"],
+      premium_status: ["active", "past_due", "inactive", "trial"],
+    },
   },
 } as const
