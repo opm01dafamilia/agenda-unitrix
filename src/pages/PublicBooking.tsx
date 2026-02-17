@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { ptBR } from "date-fns/locale";
 import { format } from "date-fns";
-import { ArrowLeft, ArrowRight, MessageCircle, CheckCircle } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageCircle, CheckCircle, Upload, Image } from "lucide-react";
 
 const formatCPF = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -57,6 +57,11 @@ const PublicBooking = () => {
   const [done, setDone] = useState(false);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
 
+  // Reference photo
+  const [referencePhoto, setReferencePhoto] = useState<File | null>(null);
+  const [referencePreview, setReferencePreview] = useState<string | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+
   const [clientForm, setClientForm] = useState({
     name: "", cpf: "", whatsapp: "", email: "", city: "",
   });
@@ -69,7 +74,6 @@ const PublicBooking = () => {
 
   useEffect(() => {
     const fetchBusiness = async () => {
-      // Use the public view
       const { data: bizData } = await supabase
         .from("businesses_public" as any)
         .select("*")
@@ -78,17 +82,17 @@ const PublicBooking = () => {
       
       if (bizData) {
         setBusiness(bizData);
-        // Fetch gallery
-        const { data: gal } = await supabase.from("gallery_images").select("*").eq("business_id", (bizData as any).id).order("sort_order");
-        setGallery(gal || []);
-        // Fetch active professionals
-        const { data: pros } = await supabase.from("professionals").select("*").eq("business_id", (bizData as any).id).eq("active", true);
-        setProfessionals(pros || []);
-        // Fetch services if not tattoo
-        if ((bizData as any).industry !== "tattoo") {
-          const { data: svc } = await supabase.from("services").select("*").eq("business_id", (bizData as any).id).eq("active", true);
-          setServices(svc || []);
-        }
+        const bizId = (bizData as any).id;
+        const [galRes, prosRes, svcRes] = await Promise.all([
+          supabase.from("gallery_images").select("*").eq("business_id", bizId).order("sort_order"),
+          supabase.from("professionals").select("*").eq("business_id", bizId).eq("active", true),
+          (bizData as any).industry !== "tattoo"
+            ? supabase.from("services").select("*").eq("business_id", bizId).eq("active", true)
+            : Promise.resolve({ data: [] }),
+        ]);
+        setGallery(galRes.data || []);
+        setProfessionals(prosRes.data || []);
+        setServices(svcRes.data || []);
       }
       setLoading(false);
     };
@@ -104,6 +108,14 @@ const PublicBooking = () => {
 
   const availableSlots = timeSlots.filter(t => !bookedSlots.includes(t));
 
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setReferencePhoto(file);
+      setReferencePreview(URL.createObjectURL(file));
+    }
+  };
+
   const goStep2 = () => {
     if (!clientForm.name || !clientForm.cpf || !clientForm.whatsapp) {
       toast.error("Preencha nome, CPF e WhatsApp"); return;
@@ -113,8 +125,9 @@ const PublicBooking = () => {
   };
 
   const goStep3 = () => {
-    if (business?.industry === "tattoo" && !detailsForm.bodyLocation) {
-      toast.error("Selecione o local do corpo"); return;
+    if (business?.industry === "tattoo") {
+      if (!detailsForm.bodyLocation) { toast.error("Selecione o local do corpo"); return; }
+      if (!referencePhoto) { toast.error("Foto de referência obrigatória"); return; }
     }
     if (business?.industry !== "tattoo" && !detailsForm.serviceId && services.length > 0) {
       toast.error("Selecione um serviço"); return;
@@ -126,6 +139,17 @@ const PublicBooking = () => {
     if (!selectedDate || !selectedTime) { toast.error("Selecione data e horário"); return; }
     setSubmitting(true);
     try {
+      // Upload reference photo if exists
+      let photoUrl: string | null = null;
+      if (referencePhoto && business) {
+        const ext = referencePhoto.name.split(".").pop();
+        const path = `${business.id}/${Date.now()}.${ext}`;
+        const { error: upErr } = await supabase.storage.from("appointments").upload(path, referencePhoto);
+        if (upErr) throw upErr;
+        const { data: { publicUrl } } = supabase.storage.from("appointments").getPublicUrl(path);
+        photoUrl = publicUrl;
+      }
+
       // Create or find client
       const { data: existingClient } = await supabase
         .from("clients")
@@ -162,6 +186,7 @@ const PublicBooking = () => {
         size_cm: detailsForm.sizeCm ? parseFloat(detailsForm.sizeCm) : null,
         has_previous_tattoo: detailsForm.hasPrevious === "yes" ? true : detailsForm.hasPrevious === "no" ? false : null,
         observations: detailsForm.observations || null,
+        reference_photo_url: photoUrl,
         client_name: clientForm.name,
         client_cpf: clientForm.cpf.replace(/\D/g, ""),
         client_whatsapp: clientForm.whatsapp.replace(/\D/g, ""),
@@ -181,8 +206,14 @@ const PublicBooking = () => {
   if (!business) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Negócio não encontrado</div>;
 
   const whatsappNumber = selectedProfessional
-    ? professionals.find(p => p.id === selectedProfessional)?.whatsapp || business.whatsapp
-    : business.whatsapp;
+    ? professionals.find(p => p.id === selectedProfessional)?.whatsapp || null
+    : null;
+
+  // Build WhatsApp message
+  const whatsappMsg = encodeURIComponent(
+    `Olá! Acabei de agendar pelo IA agenda para ${selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : ""} às ${selectedTime}.${referencePhoto ? " Segue a foto de referência." : ""}`
+  );
+  const whatsappLink = `https://wa.me/55${whatsappNumber || ""}?text=${whatsappMsg}`;
 
   if (done) {
     return (
@@ -193,8 +224,8 @@ const PublicBooking = () => {
           <p className="text-muted-foreground mb-6">
             {business.auto_accept_appointments ? "Seu horário está confirmado." : "Aguarde a confirmação do profissional."}
           </p>
-          {whatsappNumber && (
-            <a href={`https://wa.me/55${whatsappNumber}`} target="_blank" rel="noopener noreferrer">
+          {(whatsappNumber || business.whatsapp) && (
+            <a href={`https://wa.me/55${whatsappNumber || business.whatsapp}?text=${whatsappMsg}`} target="_blank" rel="noopener noreferrer">
               <Button className="w-full"><MessageCircle className="w-4 h-4 mr-2" /> Chamar no WhatsApp</Button>
             </a>
           )}
@@ -207,7 +238,7 @@ const PublicBooking = () => {
     <div className="min-h-screen bg-background relative">
       {/* Gallery background */}
       {gallery.length > 0 && (
-        <div className="fixed inset-0 z-0 overflow-hidden opacity-20">
+        <div className="fixed inset-0 z-0 overflow-hidden opacity-15">
           <div className="flex animate-scroll-x gap-4 h-full items-center">
             {[...gallery, ...gallery].map((img, i) => (
               <img key={i} src={img.image_url} alt="" className="h-64 w-auto rounded-xl object-cover flex-shrink-0" loading="lazy" />
@@ -223,7 +254,6 @@ const PublicBooking = () => {
             {business.avatar_url && <img src={business.avatar_url} alt="" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-2 border-primary/30" />}
             <h1 className="text-xl font-bold">{business.name}</h1>
             <p className="text-muted-foreground text-sm">{business.city}</p>
-            {/* Steps */}
             <div className="flex gap-2 justify-center mt-4">
               {[1, 2, 3].map((s) => (
                 <div key={s} className={`h-1 w-10 rounded-full transition-colors ${s <= step ? "bg-primary" : "bg-muted"}`} />
@@ -235,9 +265,9 @@ const PublicBooking = () => {
             {step === 1 && (
               <div className="space-y-4">
                 <h2 className="font-semibold">Seus dados</h2>
-                <div><Label>Nome completo</Label><Input value={clientForm.name} onChange={(e) => setClientForm(p => ({ ...p, name: e.target.value }))} placeholder="Seu nome" /></div>
-                <div><Label>CPF</Label><Input value={clientForm.cpf} onChange={(e) => setClientForm(p => ({ ...p, cpf: formatCPF(e.target.value) }))} placeholder="000.000.000-00" /></div>
-                <div><Label>WhatsApp</Label><Input value={clientForm.whatsapp} onChange={(e) => setClientForm(p => ({ ...p, whatsapp: formatPhone(e.target.value) }))} placeholder="(11) 99999-9999" /></div>
+                <div><Label>Nome completo *</Label><Input value={clientForm.name} onChange={(e) => setClientForm(p => ({ ...p, name: e.target.value }))} placeholder="Seu nome" /></div>
+                <div><Label>CPF *</Label><Input value={clientForm.cpf} onChange={(e) => setClientForm(p => ({ ...p, cpf: formatCPF(e.target.value) }))} placeholder="000.000.000-00" /></div>
+                <div><Label>WhatsApp *</Label><Input value={clientForm.whatsapp} onChange={(e) => setClientForm(p => ({ ...p, whatsapp: formatPhone(e.target.value) }))} placeholder="(11) 99999-9999" /></div>
                 <div><Label>Email</Label><Input type="email" value={clientForm.email} onChange={(e) => setClientForm(p => ({ ...p, email: e.target.value }))} placeholder="seu@email.com" /></div>
                 <div><Label>Cidade</Label><Input value={clientForm.city} onChange={(e) => setClientForm(p => ({ ...p, city: e.target.value }))} placeholder="São Paulo" /></div>
                 <Button className="w-full" onClick={goStep2}>Próximo <ArrowRight className="w-4 h-4 ml-2" /></Button>
@@ -250,7 +280,7 @@ const PublicBooking = () => {
                   <>
                     <h2 className="font-semibold">Sobre a tatuagem</h2>
                     <div>
-                      <Label>Local do corpo</Label>
+                      <Label>Local do corpo *</Label>
                       <div className="grid grid-cols-3 gap-2 mt-1">
                         {bodyLocations.map((loc) => (
                           <button key={loc} type="button" onClick={() => setDetailsForm(p => ({ ...p, bodyLocation: loc }))}
@@ -271,6 +301,23 @@ const PublicBooking = () => {
                           </button>
                         ))}
                       </div>
+                    </div>
+                    {/* Reference photo */}
+                    <div>
+                      <Label>Foto de referência *</Label>
+                      <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+                      {referencePreview ? (
+                        <div className="mt-2 relative">
+                          <img src={referencePreview} alt="Referência" className="w-full h-40 object-cover rounded-lg border border-border" />
+                          <button onClick={() => { setReferencePhoto(null); setReferencePreview(null); }}
+                            className="absolute top-2 right-2 w-6 h-6 bg-destructive rounded-full flex items-center justify-center text-destructive-foreground text-xs">✕</button>
+                        </div>
+                      ) : (
+                        <button onClick={() => photoRef.current?.click()} className="mt-2 w-full h-32 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground hover:border-primary/50 transition-colors">
+                          <Image className="w-8 h-8 mb-2 opacity-50" />
+                          <span className="text-sm">Toque para enviar foto</span>
+                        </button>
+                      )}
                     </div>
                     <div><Label>Observações</Label><Input value={detailsForm.observations} onChange={(e) => setDetailsForm(p => ({ ...p, observations: e.target.value }))} placeholder="Detalhes sobre o desenho" /></div>
                   </>

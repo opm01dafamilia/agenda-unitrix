@@ -1,7 +1,7 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, Calendar, Users, UserPlus, Settings,
-  CreditCard, Palette, LogOut, Menu, Shield
+  CreditCard, Palette, LogOut, Menu, Shield, Scissors
 } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -13,28 +13,41 @@ const DashboardLayout = () => {
   const [sheetOpen, setSheetOpen] = useState(false);
   const { signOut, business, isAdmin, isPremium } = useAuth();
 
+  // Premium blocking: only allow plan page if not premium and not admin
+  const isOnPlanPage = location.pathname === "/dashboard/plan";
+  if (!isPremium && !isAdmin && business && !isOnPlanPage) {
+    return <Navigate to="/dashboard/plan" replace />;
+  }
+
   const navItems = [
     { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/dashboard/agenda", icon: Calendar, label: "Agenda" },
     { path: "/dashboard/clients", icon: Users, label: "Clientes" },
     { path: "/dashboard/professionals", icon: UserPlus, label: "Profissionais" },
+  ];
+
+  // Show Services tab only for barber/salon
+  if (business?.industry !== "tattoo") {
+    navItems.push({ path: "/dashboard/services", icon: Scissors, label: "Serviços" });
+  }
+
+  navItems.push(
     { path: "/dashboard/settings", icon: Settings, label: "Configurações" },
     { path: "/dashboard/plan", icon: CreditCard, label: "Plano" },
     { path: "/dashboard/themes", icon: Palette, label: "Temas" },
-  ];
+  );
 
   if (isAdmin) {
     navItems.push({ path: "/admin", icon: Shield, label: "Admin" });
   }
 
-  const mobileNavItems = navItems.slice(0, 4);
+  const mobileNavItems = navItems.slice(0, 5);
 
   const isActive = (path: string) => {
     if (path === "/dashboard") return location.pathname === "/dashboard";
     return location.pathname.startsWith(path);
   };
 
-  // Premium warning banner
   const showPastDueBanner = business?.premium_status === "past_due";
 
   const NavLinks = () => (
