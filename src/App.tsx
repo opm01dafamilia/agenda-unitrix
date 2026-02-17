@@ -15,6 +15,7 @@ import DashboardHome from "./pages/Dashboard";
 import AgendaPage from "./pages/dashboard/AgendaPage";
 import ClientsPage from "./pages/dashboard/ClientsPage";
 import ProfessionalsPage from "./pages/dashboard/ProfessionalsPage";
+import ServicesPage from "./pages/dashboard/ServicesPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
 import PlanPage from "./pages/dashboard/PlanPage";
 import ThemesPage from "./pages/dashboard/ThemesPage";
@@ -48,6 +49,7 @@ const App = () => (
               <Route path="agenda" element={<AgendaPage />} />
               <Route path="clients" element={<ClientsPage />} />
               <Route path="professionals" element={<ProfessionalsPage />} />
+              <Route path="services" element={<ServicesPage />} />
               <Route path="settings" element={<SettingsPage />} />
               <Route path="plan" element={<PlanPage />} />
               <Route path="themes" element={<ThemesPage />} />
