@@ -10,14 +10,7 @@ const statusLabels: Record<string, string> = {
   pending: "Pendente",
   confirmed: "Confirmado",
   cancelled: "Cancelado",
-  completed: "Finalizado",
-};
-
-const statusColors: Record<string, string> = {
-  pending: "bg-yellow-500/20 text-yellow-400",
-  confirmed: "bg-green-500/20 text-green-400",
-  cancelled: "bg-destructive/20 text-destructive",
-  completed: "bg-blue-500/20 text-blue-400",
+  completed: "Concluído",
 };
 
 const DashboardHome = () => {
@@ -55,7 +48,6 @@ const DashboardHome = () => {
       completed_at: new Date().toISOString(),
       completed_by: user?.id,
     }).eq("id", id);
-    // Refresh
     const today = new Date().toISOString().split("T")[0];
     const { data } = await supabase.from("appointments").select("*").eq("business_id", business!.id).gte("appointment_date", today).neq("status", "cancelled").order("appointment_date").order("start_time").limit(10);
     setUpcoming(data || []);
@@ -67,17 +59,17 @@ const DashboardHome = () => {
     { label: "Semana", value: stats.week, icon: Clock },
     { label: "Clientes", value: stats.clients, icon: Users },
     { label: "Pendentes", value: stats.pending, icon: AlertCircle },
-    { label: "Finalizados", value: stats.completed, icon: CheckCircle },
+    { label: "Concluídos", value: stats.completed, icon: CheckCircle },
   ];
 
   return (
     <div className="animate-fade-in">
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
         {statCards.map((s) => (
-          <div key={s.label} className="p-4 rounded-xl bg-card border border-border/50">
-            <s.icon className="w-5 h-5 text-primary mb-2" />
+          <div key={s.label} className="p-4 rounded-xl border border-border bg-card">
+            <s.icon className="w-4 h-4 text-muted-foreground mb-2" />
             <div className="text-2xl font-bold">{s.value}</div>
             <div className="text-sm text-muted-foreground">{s.label}</div>
           </div>
@@ -86,29 +78,35 @@ const DashboardHome = () => {
 
       <h2 className="text-lg font-semibold mb-4">Próximos agendamentos</h2>
       {upcoming.length === 0 ? (
-        <div className="p-6 rounded-xl bg-card border border-border/50 text-center text-muted-foreground">
+        <div className="p-8 rounded-xl border border-dashed border-border text-center text-muted-foreground">
           Nenhum agendamento próximo.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2">
           {upcoming.map((a) => (
-            <div key={a.id} className="flex items-center justify-between p-4 rounded-xl bg-card border border-border/50">
+            <div key={a.id} className="flex items-center justify-between p-4 rounded-xl border border-border bg-card">
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{a.client_name || "Cliente"}</span>
-                  <span className={`px-1.5 py-0.5 rounded text-xs ${statusColors[a.status]}`}>{statusLabels[a.status]}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-xs ${
+                    a.status === "completed" ? "bg-muted text-muted-foreground" :
+                    a.status === "confirmed" ? "bg-muted text-foreground" :
+                    a.status === "pending" ? "bg-muted text-muted-foreground" : "bg-muted text-muted-foreground"
+                  }`}>
+                    {statusLabels[a.status]}
+                  </span>
                 </div>
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-muted-foreground mt-0.5">
                   {a.body_location ? `${a.body_location} • ${a.size_cm}cm` : a.observations || ""}
                 </div>
               </div>
               <div className="text-right flex items-center gap-3">
                 <div>
-                  <div className="text-primary font-semibold">{a.start_time?.slice(0, 5)}</div>
+                  <div className="font-semibold">{a.start_time?.slice(0, 5)}</div>
                   <div className="text-xs text-muted-foreground">{format(new Date(a.appointment_date), "dd/MM", { locale: ptBR })}</div>
                 </div>
                 {a.status === "confirmed" && (
-                  <Button size="sm" variant="outline" className="text-blue-400" onClick={() => completeAppointment(a.id)}>
+                  <Button size="sm" variant="outline" onClick={() => completeAppointment(a.id)}>
                     <CheckCircle className="w-3 h-3" />
                   </Button>
                 )}

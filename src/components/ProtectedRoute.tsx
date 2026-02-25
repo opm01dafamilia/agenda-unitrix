@@ -14,11 +14,3 @@ export const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   if (!user || !isAdmin) return <Navigate to="/dashboard" replace />;
   return <>{children}</>;
 };
-
-export const PremiumGuard = ({ children }: { children: React.ReactNode }) => {
-  const { isPremium, business } = useAuth();
-  if (!isPremium && business) {
-    return <Navigate to="/dashboard/plan" replace />;
-  }
-  return <>{children}</>;
-};
