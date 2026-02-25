@@ -7,10 +7,6 @@ interface Business {
   name: string;
   slug: string;
   industry: string;
-  premium_status: string;
-  premium_until: string | null;
-  grace_period_until: string | null;
-  auto_accept_appointments: boolean;
   whatsapp: string;
   email: string;
   city: string | null;
@@ -18,15 +14,15 @@ interface Business {
   theme_primary_color: string;
   theme_secondary_color: string;
   operating_hours: any;
+  auto_accept_appointments: boolean;
   message_template_client: string;
   message_template_professional: string;
-  cpf: string;
   address_street: string | null;
   address_number: string | null;
   address_zip: string | null;
   address_neighborhood: string | null;
   address_complement: string | null;
-  premium_plan: string | null;
+  cpf: string;
 }
 
 interface AuthContextType {
@@ -34,7 +30,6 @@ interface AuthContextType {
   session: Session | null;
   business: Business | null;
   isAdmin: boolean;
-  isPremium: boolean;
   isLoading: boolean;
   signOut: () => Promise<void>;
   refreshBusiness: () => Promise<void>;
@@ -84,18 +79,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (user) await fetchBusiness(user.id);
   };
 
-  const isPremium = (() => {
-    if (!user) return false;
-    if (ADMIN_EMAILS.includes(user.email || "")) return true;
-    if (!business) return false;
-    const s = business.premium_status;
-    if (s === "active" || s === "trial") return true;
-    if (s === "past_due" && business.grace_period_until) {
-      return new Date(business.grace_period_until) > new Date();
-    }
-    return false;
-  })();
-
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
@@ -134,9 +117,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   return (
-    <AuthContext.Provider
-      value={{ user, session, business, isAdmin, isPremium, isLoading, signOut, refreshBusiness }}
-    >
+    <AuthContext.Provider value={{ user, session, business, isAdmin, isLoading, signOut, refreshBusiness }}>
       {children}
     </AuthContext.Provider>
   );

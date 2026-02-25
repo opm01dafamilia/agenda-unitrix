@@ -231,6 +231,7 @@ export type Database = {
           id: string
           name: string
           neighborhood: string | null
+          notes: string | null
           updated_at: string
           whatsapp: string
         }
@@ -243,6 +244,7 @@ export type Database = {
           id?: string
           name: string
           neighborhood?: string | null
+          notes?: string | null
           updated_at?: string
           whatsapp: string
         }
@@ -255,6 +257,7 @@ export type Database = {
           id?: string
           name?: string
           neighborhood?: string | null
+          notes?: string | null
           updated_at?: string
           whatsapp?: string
         }
@@ -278,6 +281,7 @@ export type Database = {
       gallery_images: {
         Row: {
           business_id: string
+          caption: string | null
           created_at: string
           id: string
           image_url: string
@@ -285,6 +289,7 @@ export type Database = {
         }
         Insert: {
           business_id: string
+          caption?: string | null
           created_at?: string
           id?: string
           image_url: string
@@ -292,6 +297,7 @@ export type Database = {
         }
         Update: {
           business_id?: string
+          caption?: string | null
           created_at?: string
           id?: string
           image_url?: string
