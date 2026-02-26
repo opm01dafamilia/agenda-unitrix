@@ -29,16 +29,29 @@ const Signup = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
         options: { emailRedirectTo: window.location.origin },
       });
       if (error) throw error;
-      toast.success("Conta criada! Verifique seu email para confirmar.");
-      navigate("/login");
+
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        // Email confirmation is enabled — user needs to verify
+        toast.success("Conta criada! Verifique sua caixa de entrada para confirmar o email.");
+        navigate("/login");
+      } else if (data.session) {
+        // Auto-confirm is on — user is logged in automatically
+        toast.success("Conta criada com sucesso!");
+        navigate("/dashboard");
+      }
     } catch (err: any) {
-      toast.error(err.message || "Erro ao criar conta");
+      if (err.message?.includes("already registered")) {
+        toast.error("Este email já está cadastrado. Tente fazer login.");
+      } else {
+        toast.error(err.message || "Erro ao criar conta");
+      }
     } finally {
       setLoading(false);
     }

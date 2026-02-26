@@ -20,6 +20,19 @@ const DashboardLayout = () => {
     return <Navigate to="/onboarding" replace />;
   }
 
+  // If business is blocked by admin
+  if (business && (business as any).is_active === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 bg-background">
+        <div className="text-center animate-fade-in">
+          <h1 className="text-2xl font-bold mb-2">Conta bloqueada</h1>
+          <p className="text-muted-foreground mb-4">Sua conta foi temporariamente suspensa. Entre em contato com o suporte.</p>
+          <Button variant="outline" onClick={signOut}>Sair</Button>
+        </div>
+      </div>
+    );
+  }
+
   const navItems = [
     { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
     { path: "/dashboard/agenda", icon: Calendar, label: "Agenda" },

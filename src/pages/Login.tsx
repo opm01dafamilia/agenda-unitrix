@@ -18,11 +18,36 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) {
+        if (error.message === "Invalid login credentials") {
+          toast.error("Email ou senha incorretos.");
+        } else if (error.message === "Email not confirmed") {
+          toast.error("Email não confirmado. Verifique sua caixa de entrada.");
+        } else if (error.message?.includes("rate limit")) {
+          toast.error("Muitas tentativas. Aguarde um momento.");
+        } else {
+          toast.error(error.message);
+        }
+        return;
+      }
+
+      // Check if business is_active
+      const { data: biz } = await supabase
+        .from("businesses")
+        .select("is_active")
+        .eq("owner_id", data.user.id)
+        .maybeSingle();
+
+      if (biz && biz.is_active === false) {
+        await supabase.auth.signOut();
+        toast.error("Sua conta está bloqueada. Entre em contato com o suporte.");
+        return;
+      }
+
       navigate("/dashboard");
     } catch (err: any) {
-      toast.error(err.message === "Invalid login credentials" ? "Email ou senha incorretos" : err.message);
+      toast.error("Erro ao fazer login. Tente novamente.");
     } finally {
       setLoading(false);
     }
