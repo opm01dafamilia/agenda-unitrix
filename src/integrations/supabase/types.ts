@@ -19,6 +19,8 @@ export type Database = {
           appointment_date: string
           body_location: string | null
           business_id: string
+          calculated_duration_minutes: number | null
+          cleanup_minutes: number | null
           client_city: string | null
           client_cpf: string | null
           client_email: string | null
@@ -38,6 +40,8 @@ export type Database = {
           size_cm: number | null
           start_time: string
           status: Database["public"]["Enums"]["appointment_status"]
+          tattoo_complexity_label: string | null
+          tattoo_size_cm: number | null
           tattoo_value: number | null
           updated_at: string
         }
@@ -45,6 +49,8 @@ export type Database = {
           appointment_date: string
           body_location?: string | null
           business_id: string
+          calculated_duration_minutes?: number | null
+          cleanup_minutes?: number | null
           client_city?: string | null
           client_cpf?: string | null
           client_email?: string | null
@@ -64,6 +70,8 @@ export type Database = {
           size_cm?: number | null
           start_time: string
           status?: Database["public"]["Enums"]["appointment_status"]
+          tattoo_complexity_label?: string | null
+          tattoo_size_cm?: number | null
           tattoo_value?: number | null
           updated_at?: string
         }
@@ -71,6 +79,8 @@ export type Database = {
           appointment_date?: string
           body_location?: string | null
           business_id?: string
+          calculated_duration_minutes?: number | null
+          cleanup_minutes?: number | null
           client_city?: string | null
           client_cpf?: string | null
           client_email?: string | null
@@ -90,6 +100,8 @@ export type Database = {
           size_cm?: number | null
           start_time?: string
           status?: Database["public"]["Enums"]["appointment_status"]
+          tattoo_complexity_label?: string | null
+          tattoo_size_cm?: number | null
           tattoo_value?: number | null
           updated_at?: string
         }
@@ -398,6 +410,7 @@ export type Database = {
           id: string
           name: string
           price: number | null
+          service_type: string
         }
         Insert: {
           active?: boolean | null
@@ -407,6 +420,7 @@ export type Database = {
           id?: string
           name: string
           price?: number | null
+          service_type?: string
         }
         Update: {
           active?: boolean | null
@@ -416,6 +430,7 @@ export type Database = {
           id?: string
           name?: string
           price?: number | null
+          service_type?: string
         }
         Relationships: [
           {
@@ -433,6 +448,72 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      tattoo_complexity_factors: {
+        Row: {
+          business_id: string
+          created_at: string
+          factor: number
+          id: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          factor?: number
+          id?: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          factor?: number
+          id?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tattoo_duration_rules: {
+        Row: {
+          base_minutes: number
+          business_id: string
+          cleanup_minutes: number
+          cm_max: number
+          cm_min: number
+          created_at: string
+          id: string
+          is_active: boolean
+          service_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_minutes: number
+          business_id: string
+          cleanup_minutes?: number
+          cm_max: number
+          cm_min: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          service_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_minutes?: number
+          business_id?: string
+          cleanup_minutes?: number
+          cm_max?: number
+          cm_min?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          service_id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       trial_codes: {
         Row: {

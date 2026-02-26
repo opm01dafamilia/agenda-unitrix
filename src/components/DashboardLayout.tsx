@@ -40,10 +40,8 @@ const DashboardLayout = () => {
     { path: "/dashboard/clients", icon: Users, label: "Clientes" },
   ];
 
-  // Services only for barber/salon
-  if (business.industry !== "tattoo") {
-    navItems.push({ path: "/dashboard/services", icon: Scissors, label: "Serviços" });
-  }
+  // Services available for all industries (tattoo uses variable duration)
+  navItems.push({ path: "/dashboard/services", icon: Scissors, label: "Serviços" });
 
   navItems.push(
     { path: "/dashboard/professionals", icon: UserPlus, label: "Profissionais" },
