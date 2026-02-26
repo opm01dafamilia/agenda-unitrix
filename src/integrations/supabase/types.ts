@@ -147,6 +147,7 @@ export type Database = {
           grace_period_until: string | null
           id: string
           industry: Database["public"]["Enums"]["industry_type"]
+          is_active: boolean
           message_template_client: string | null
           message_template_professional: string | null
           name: string
@@ -176,6 +177,7 @@ export type Database = {
           grace_period_until?: string | null
           id?: string
           industry: Database["public"]["Enums"]["industry_type"]
+          is_active?: boolean
           message_template_client?: string | null
           message_template_professional?: string | null
           name: string
@@ -205,6 +207,7 @@ export type Database = {
           grace_period_until?: string | null
           id?: string
           industry?: Database["public"]["Enums"]["industry_type"]
+          is_active?: boolean
           message_template_client?: string | null
           message_template_professional?: string | null
           name?: string
