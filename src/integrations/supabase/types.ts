@@ -14,6 +14,81 @@ export type Database = {
   }
   public: {
     Tables: {
+      access_control: {
+        Row: {
+          business_id: string | null
+          created_at: string
+          external_customer_id: string | null
+          external_subscription_id: string | null
+          id: string
+          source: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          business_id?: string | null
+          created_at?: string
+          external_customer_id?: string | null
+          external_subscription_id?: string | null
+          id?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          business_id?: string | null
+          created_at?: string
+          external_customer_id?: string | null
+          external_subscription_id?: string | null
+          id?: string
+          source?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "access_control_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "access_control_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      admin_logs: {
+        Row: {
+          created_at: string
+          event_type: string
+          id: string
+          payload: Json | null
+          source: string
+        }
+        Insert: {
+          created_at?: string
+          event_type: string
+          id?: string
+          payload?: Json | null
+          source?: string
+        }
+        Update: {
+          created_at?: string
+          event_type?: string
+          id?: string
+          payload?: Json | null
+          source?: string
+        }
+        Relationships: []
+      }
       appointments: {
         Row: {
           appointment_date: string
@@ -168,6 +243,7 @@ export type Database = {
           premium_plan: string | null
           premium_status: Database["public"]["Enums"]["premium_status"] | null
           premium_until: string | null
+          profession_subtype: string | null
           slug: string
           theme_primary_color: string | null
           theme_secondary_color: string | null
@@ -198,6 +274,7 @@ export type Database = {
           premium_plan?: string | null
           premium_status?: Database["public"]["Enums"]["premium_status"] | null
           premium_until?: string | null
+          profession_subtype?: string | null
           slug: string
           theme_primary_color?: string | null
           theme_secondary_color?: string | null
@@ -228,6 +305,7 @@ export type Database = {
           premium_plan?: string | null
           premium_status?: Database["public"]["Enums"]["premium_status"] | null
           premium_until?: string | null
+          profession_subtype?: string | null
           slug?: string
           theme_primary_color?: string | null
           theme_secondary_color?: string | null
@@ -665,7 +743,7 @@ export type Database = {
     Enums: {
       app_role: "adm" | "premium"
       appointment_status: "pending" | "confirmed" | "cancelled" | "completed"
-      industry_type: "tattoo" | "barber" | "salon"
+      industry_type: "tattoo" | "barber" | "salon" | "design"
       premium_status: "active" | "past_due" | "inactive" | "trial"
     }
     CompositeTypes: {
@@ -796,7 +874,7 @@ export const Constants = {
     Enums: {
       app_role: ["adm", "premium"],
       appointment_status: ["pending", "confirmed", "cancelled", "completed"],
-      industry_type: ["tattoo", "barber", "salon"],
+      industry_type: ["tattoo", "barber", "salon", "design"],
       premium_status: ["active", "past_due", "inactive", "trial"],
     },
   },

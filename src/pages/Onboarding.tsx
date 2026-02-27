@@ -11,6 +11,12 @@ const industries = [
   { value: "tattoo", label: "Tatuador", emoji: "🎨" },
   { value: "barber", label: "Barbearia", emoji: "💈" },
   { value: "salon", label: "Salão de Beleza", emoji: "✨" },
+  { value: "design", label: "Design", emoji: "💅" },
+];
+
+const designSubtypes = [
+  { value: "unha", label: "Unha", emoji: "💅" },
+  { value: "sobrancelha", label: "Sobrancelha", emoji: "🖌️" },
 ];
 
 const formatPhone = (v: string) => {
@@ -27,6 +33,7 @@ const Onboarding = () => {
   const [form, setForm] = useState({
     name: "",
     industry: "",
+    subtype: "",
     whatsapp: "",
     city: "",
   });
@@ -38,6 +45,10 @@ const Onboarding = () => {
     e.preventDefault();
     if (!form.name || !form.industry || !form.whatsapp || !form.city) {
       toast.error("Preencha todos os campos");
+      return;
+    }
+    if (form.industry === "design" && !form.subtype) {
+      toast.error("Selecione a subcategoria");
       return;
     }
     if (!user) return;
@@ -55,7 +66,8 @@ const Onboarding = () => {
         name: form.name,
         slug,
         industry: form.industry as any,
-        cpf: "00000000000", // placeholder, user can update in settings
+        profession_subtype: form.industry === "design" ? form.subtype : null,
+        cpf: "00000000000",
         whatsapp: form.whatsapp.replace(/\D/g, ""),
         email: user.email || "",
         city: form.city,
@@ -87,15 +99,29 @@ const Onboarding = () => {
 
           <div>
             <Label>Profissão</Label>
-            <div className="grid grid-cols-3 gap-2 mt-1">
+            <div className="grid grid-cols-2 gap-2 mt-1">
               {industries.map(ind => (
-                <button key={ind.value} type="button" onClick={() => update("industry", ind.value)}
+                <button key={ind.value} type="button" onClick={() => { update("industry", ind.value); if (ind.value !== "design") update("subtype", ""); }}
                   className={`p-3 rounded-lg border text-center text-sm transition-colors ${form.industry === ind.value ? "border-foreground bg-accent" : "border-border hover:border-foreground/30"}`}>
                   <div className="text-xl mb-1">{ind.emoji}</div>{ind.label}
                 </button>
               ))}
             </div>
           </div>
+
+          {form.industry === "design" && (
+            <div>
+              <Label>Subcategoria</Label>
+              <div className="grid grid-cols-2 gap-2 mt-1">
+                {designSubtypes.map(sub => (
+                  <button key={sub.value} type="button" onClick={() => update("subtype", sub.value)}
+                    className={`p-3 rounded-lg border text-center text-sm transition-colors ${form.subtype === sub.value ? "border-foreground bg-accent" : "border-border hover:border-foreground/30"}`}>
+                    <div className="text-xl mb-1">{sub.emoji}</div>{sub.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div>
             <Label>WhatsApp</Label>

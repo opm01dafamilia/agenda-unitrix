@@ -3,25 +3,61 @@ import {
   LayoutDashboard, Calendar, CalendarCheck, Users, UserPlus, Settings,
   LogOut, Menu, Shield, Scissors, Link2, Image, Sun, Moon
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
+import { supabase } from "@/integrations/supabase/client";
 
 const DashboardLayout = () => {
   const location = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { signOut, business, isAdmin } = useAuth();
+  const { signOut, business, isAdmin, user } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [accessBlocked, setAccessBlocked] = useState(false);
+  const [accessLoading, setAccessLoading] = useState(true);
 
-  // If no business created yet, redirect to onboarding
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("access_control" as any)
+      .select("status")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data && (data as any).status !== "active") {
+          setAccessBlocked(true);
+        }
+        setAccessLoading(false);
+      });
+  }, [user]);
+
   if (!business) {
     return <Navigate to="/onboarding" replace />;
   }
 
-  // If business is blocked by admin
-  if (business && (business as any).is_active === false) {
+  if (accessLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  if (accessBlocked && !isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-4 bg-background">
+        <div className="text-center animate-fade-in">
+          <h1 className="text-2xl font-bold mb-2">Acesso indisponível</h1>
+          <p className="text-muted-foreground mb-4">Seu acesso está temporariamente indisponível. Entre em contato com o suporte.</p>
+          <Button variant="outline" onClick={signOut}>Sair</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (business && (business as any).is_active === false && !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-background">
         <div className="text-center animate-fade-in">
@@ -38,17 +74,12 @@ const DashboardLayout = () => {
     { path: "/dashboard/agenda", icon: Calendar, label: "Agenda" },
     { path: "/dashboard/appointments", icon: CalendarCheck, label: "Agendamentos" },
     { path: "/dashboard/clients", icon: Users, label: "Clientes" },
-  ];
-
-  // Services available for all industries (tattoo uses variable duration)
-  navItems.push({ path: "/dashboard/services", icon: Scissors, label: "Serviços" });
-
-  navItems.push(
+    { path: "/dashboard/services", icon: Scissors, label: "Serviços" },
     { path: "/dashboard/professionals", icon: UserPlus, label: "Profissionais" },
     { path: "/dashboard/public-link", icon: Link2, label: "Link Público" },
     { path: "/dashboard/gallery", icon: Image, label: "Galeria" },
     { path: "/dashboard/settings", icon: Settings, label: "Configurações" },
-  );
+  ];
 
   if (isAdmin) {
     navItems.push({ path: "/admin", icon: Shield, label: "Admin" });
@@ -74,12 +105,9 @@ const DashboardLayout = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Desktop sidebar */}
       <aside className="hidden md:flex fixed left-0 top-0 bottom-0 w-60 border-r border-border flex-col bg-sidebar">
         <div className="p-4 border-b border-border">
-          <Link to="/dashboard" className="text-lg font-semibold tracking-tight">
-            IA agenda
-          </Link>
+          <Link to="/dashboard" className="text-lg font-semibold tracking-tight">IA agenda</Link>
           {business && <p className="text-xs text-muted-foreground mt-0.5 truncate">{business.name}</p>}
         </div>
         <div className="flex-1 overflow-y-auto"><NavLinks /></div>
@@ -94,7 +122,6 @@ const DashboardLayout = () => {
         </div>
       </aside>
 
-      {/* Mobile header */}
       <header className="md:hidden fixed top-0 left-0 right-0 h-14 border-b border-border bg-background/95 backdrop-blur-xl z-50 flex items-center justify-between px-4">
         <Link to="/dashboard" className="text-lg font-semibold tracking-tight">IA agenda</Link>
         <div className="flex items-center gap-1">
@@ -118,7 +145,6 @@ const DashboardLayout = () => {
         </div>
       </header>
 
-      {/* Mobile bottom nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 border-t border-border bg-background/95 backdrop-blur-xl z-50">
         <div className="flex justify-around py-2">
           {mobileNavItems.map((item) => (
