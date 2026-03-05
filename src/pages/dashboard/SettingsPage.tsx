@@ -5,8 +5,37 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { Upload, Camera, Eye, EyeOff } from "lucide-react";
-import { showcaseColors, getShowcaseHSL } from "@/lib/businessLabels";
+import { Upload, Camera, Eye, EyeOff, AlertTriangle } from "lucide-react";
+import { showcaseColors, designServiceSeeds } from "@/lib/businessLabels";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+
+const industries = [
+  { value: "tattoo", label: "Tatuador" },
+  { value: "barber", label: "Barbearia" },
+  { value: "salon", label: "Salão de Beleza" },
+  { value: "design", label: "Design" },
+];
+
+const designSubtypes = [
+  { value: "unha", label: "Unha" },
+  { value: "sobrancelha", label: "Sobrancelha" },
+];
 
 const SettingsPage = () => {
   const { business, refreshBusiness } = useAuth();
@@ -25,10 +54,20 @@ const SettingsPage = () => {
   const [showPw, setShowPw] = useState(false);
   const [changingPw, setChangingPw] = useState(false);
 
+  // Profession editor
+  const [profIndustry, setProfIndustry] = useState("");
+  const [profSubtype, setProfSubtype] = useState("");
+  const [savingProf, setSavingProf] = useState(false);
+  const [showProfConfirm, setShowProfConfirm] = useState(false);
+  const [showSeedButton, setShowSeedButton] = useState(false);
+  const [seedingServices, setSeedingServices] = useState(false);
+
   useEffect(() => {
     if (business) {
       setAvatarUrl(business.avatar_url);
       setShowcaseColor(business.showcase_color || "gold");
+      setProfIndustry(business.industry);
+      setProfSubtype(business.profession_subtype || "");
       setAddress({
         street: business.address_street || "",
         number: business.address_number || "",
@@ -103,6 +142,101 @@ const SettingsPage = () => {
     }
   };
 
+  // Profession save logic
+  const handleProfessionSave = () => {
+    if (!profIndustry) { toast.error("Selecione uma profissão"); return; }
+    if (profIndustry === "design" && !profSubtype) { toast.error("Selecione a subcategoria"); return; }
+    setShowProfConfirm(true);
+  };
+
+  const confirmProfessionSave = async () => {
+    if (!business) return;
+    setShowProfConfirm(false);
+    setSavingProf(true);
+    try {
+      const subtypeValue = profIndustry === "design" ? profSubtype : null;
+      await supabase.from("businesses").update({
+        industry: profIndustry as any,
+        profession_subtype: subtypeValue,
+      }).eq("id", business.id);
+
+      // If changed to design, check if should seed services
+      if (profIndustry === "design" && subtypeValue) {
+        const { data: existingServices } = await supabase
+          .from("services")
+          .select("name")
+          .eq("business_id", business.id);
+
+        if (!existingServices || existingServices.length === 0) {
+          // No services exist — auto-seed
+          const seeds = designServiceSeeds[subtypeValue];
+          if (seeds) {
+            await supabase.from("services").insert(
+              seeds.map(s => ({
+                business_id: business.id,
+                name: s.name,
+                duration_minutes: s.duration,
+                service_type: "padrao",
+              }))
+            );
+          }
+          toast.success("Profissão atualizada e serviços padrão criados!");
+        } else {
+          // Services exist — offer seed button
+          setShowSeedButton(true);
+          toast.success("Profissão atualizada!");
+        }
+      } else {
+        setShowSeedButton(false);
+        toast.success("Profissão atualizada!");
+      }
+
+      await refreshBusiness();
+    } catch (err: any) {
+      toast.error(err.message || "Erro ao salvar profissão");
+    } finally {
+      setSavingProf(false);
+    }
+  };
+
+  const seedRecommendedServices = async () => {
+    if (!business || !profSubtype) return;
+    setSeedingServices(true);
+    try {
+      const seeds = designServiceSeeds[profSubtype];
+      if (!seeds) return;
+
+      const { data: existing } = await supabase
+        .from("services")
+        .select("name")
+        .eq("business_id", business.id);
+
+      const existingNames = new Set((existing || []).map((s: any) => s.name));
+      const toInsert = seeds
+        .filter(s => !existingNames.has(s.name))
+        .map(s => ({
+          business_id: business.id,
+          name: s.name,
+          duration_minutes: s.duration,
+          service_type: "padrao",
+        }));
+
+      if (toInsert.length > 0) {
+        await supabase.from("services").insert(toInsert);
+        toast.success(`${toInsert.length} serviço(s) adicionado(s)!`);
+      } else {
+        toast.info("Todos os serviços recomendados já existem.");
+      }
+      setShowSeedButton(false);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSeedingServices(false);
+    }
+  };
+
+  const professionChanged = business && (profIndustry !== business.industry || (profIndustry === "design" ? profSubtype !== (business.profession_subtype || "") : false));
+
   return (
     <div className="animate-fade-in max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Configurações</h1>
@@ -128,6 +262,55 @@ const SettingsPage = () => {
               </Button>
               <p className="text-xs text-muted-foreground mt-1">Aparece no link público</p>
             </div>
+          </div>
+        </div>
+
+        {/* Profession Editor */}
+        <div className="p-5 rounded-xl border border-border bg-card">
+          <h2 className="font-semibold mb-3">Profissão do Negócio</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Profissão atual: <span className="font-medium text-foreground">{industries.find(i => i.value === business?.industry)?.label || "—"}</span>
+            {business?.profession_subtype && (
+              <> · <span className="font-medium text-foreground">{designSubtypes.find(s => s.value === business.profession_subtype)?.label}</span></>
+            )}
+          </p>
+
+          <div className="space-y-3">
+            <div>
+              <Label>Profissão</Label>
+              <Select value={profIndustry} onValueChange={(v) => { setProfIndustry(v); if (v !== "design") setProfSubtype(""); }}>
+                <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                <SelectContent>
+                  {industries.map(i => (
+                    <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {profIndustry === "design" && (
+              <div>
+                <Label>Subcategoria</Label>
+                <Select value={profSubtype} onValueChange={setProfSubtype}>
+                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
+                  <SelectContent>
+                    {designSubtypes.map(s => (
+                      <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <Button onClick={handleProfessionSave} disabled={savingProf || !professionChanged} className="w-full">
+              {savingProf ? "Salvando..." : "Salvar profissão"}
+            </Button>
+
+            {showSeedButton && profIndustry === "design" && (
+              <Button variant="outline" onClick={seedRecommendedServices} disabled={seedingServices} className="w-full">
+                {seedingServices ? "Adicionando..." : "Adicionar serviços recomendados"}
+              </Button>
+            )}
           </div>
         </div>
 
@@ -191,6 +374,24 @@ const SettingsPage = () => {
           </div>
         </div>
       </div>
+
+      {/* Profession change confirmation dialog */}
+      <AlertDialog open={showProfConfirm} onOpenChange={setShowProfConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-yellow-500" /> Alterar profissão
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Alterar a profissão muda textos e sugestões, mas não apaga seus dados (agendamentos, clientes, serviços).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmProfessionSave}>Confirmar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
