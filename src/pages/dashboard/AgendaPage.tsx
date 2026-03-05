@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Calendar as CalendarIcon, Plus, Check, X, CheckCircle, Clock } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, Check, X, CheckCircle, Clock, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,30 +11,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { getAvailableSlots, type WorkHourEntry, type TimeBlockEntry, type AppointmentEntry } from "@/lib/availabilityUtils";
 
 const statusLabels: Record<string, string> = {
-  pending: "Pendente",
-  confirmed: "Confirmado",
-  cancelled: "Cancelado",
-  completed: "Concluído",
+  pending: "Pendente", confirmed: "Confirmado", cancelled: "Cancelado", completed: "Concluído",
 };
-
-const timeSlots = Array.from({ length: 25 }, (_, i) => {
-  const h = Math.floor(i / 2) + 8;
-  const m = i % 2 === 0 ? "00" : "30";
-  return `${h.toString().padStart(2, "0")}:${m}`;
-});
 
 const AgendaPage = () => {
   const { business, user } = useAuth();
-  const isTattoo = business?.industry === "tattoo";
   const [appointments, setAppointments] = useState<any[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>();
   const [selectedTime, setSelectedTime] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Form fields
   const [clientName, setClientName] = useState("");
   const [clientWhatsapp, setClientWhatsapp] = useState("");
   const [selectedService, setSelectedService] = useState("");
@@ -43,21 +33,22 @@ const AgendaPage = () => {
   const [tattooComplexity, setTattooComplexity] = useState("");
   const [observations, setObservations] = useState("");
 
-  // Data
   const [services, setServices] = useState<any[]>([]);
   const [professionals, setProfessionals] = useState<any[]>([]);
   const [complexityFactors, setComplexityFactors] = useState<any[]>([]);
   const [durationRules, setDurationRules] = useState<any[]>([]);
-  const [dayAppointments, setDayAppointments] = useState<any[]>([]);
 
-  // Calculated duration
+  // Availability data
+  const [workHours, setWorkHours] = useState<WorkHourEntry[]>([]);
+  const [timeBlocks, setTimeBlocks] = useState<TimeBlockEntry[]>([]);
+  const [dayAppointments, setDayAppointments] = useState<AppointmentEntry[]>([]);
+
   const [calculatedDuration, setCalculatedDuration] = useState<number | null>(null);
   const [cleanupMinutes, setCleanupMinutes] = useState<number>(0);
 
   const fetchAppointments = async () => {
     if (!business) return;
-    const { data } = await supabase
-      .from("appointments").select("*").eq("business_id", business.id)
+    const { data } = await supabase.from("appointments").select("*").eq("business_id", business.id)
       .order("appointment_date").order("start_time");
     setAppointments(data || []);
   };
@@ -75,6 +66,22 @@ const AgendaPage = () => {
   };
 
   useEffect(() => { fetchAppointments(); fetchData(); }, [business]);
+
+  // Fetch work hours when professional changes
+  useEffect(() => {
+    if (!selectedProfessional) { setWorkHours([]); return; }
+    supabase.from("professional_work_hours").select("weekday, start_time, end_time, is_active")
+      .eq("professional_id", selectedProfessional).eq("is_active", true)
+      .then(({ data }) => setWorkHours(data || []));
+  }, [selectedProfessional]);
+
+  // Fetch blocks when professional changes
+  useEffect(() => {
+    if (!selectedProfessional) { setTimeBlocks([]); return; }
+    supabase.from("professional_time_blocks").select("block_start, block_end")
+      .eq("professional_id", selectedProfessional)
+      .then(({ data }) => setTimeBlocks(data || []));
+  }, [selectedProfessional]);
 
   // Fetch duration rules when service changes
   useEffect(() => {
@@ -99,7 +106,6 @@ const AgendaPage = () => {
   useEffect(() => {
     const svc = services.find(s => s.id === selectedService);
     if (!svc) { setCalculatedDuration(null); setCleanupMinutes(0); return; }
-
     if (svc.service_type === "tatuagem_variavel" && tattooSize) {
       const size = parseInt(tattooSize);
       const rule = durationRules.find(r => size >= r.cm_min && size <= r.cm_max);
@@ -111,45 +117,43 @@ const AgendaPage = () => {
         }
         setCalculatedDuration(base + (rule.cleanup_minutes || 0));
         setCleanupMinutes(rule.cleanup_minutes || 0);
-      } else {
-        setCalculatedDuration(null);
-        setCleanupMinutes(0);
-      }
+      } else { setCalculatedDuration(null); setCleanupMinutes(0); }
     } else {
       setCalculatedDuration(svc.duration_minutes);
       setCleanupMinutes(0);
     }
   }, [selectedService, tattooSize, tattooComplexity, durationRules, complexityFactors, services]);
 
-  // Occupied slots calculation
-  const occupiedSlots = useMemo(() => {
-    const occupied = new Set<string>();
-    dayAppointments.forEach(a => {
-      if (!a.start_time) return;
-      const [sh, sm] = a.start_time.split(":").map(Number);
-      const dur = a.calculated_duration_minutes || 30;
-      const startMin = sh * 60 + sm;
-      for (let m = startMin; m < startMin + dur; m += 30) {
-        const h2 = Math.floor(m / 60);
-        const m2 = m % 60;
-        occupied.add(`${h2.toString().padStart(2, "0")}:${m2 === 0 ? "00" : "30"}`);
+  // Available slots
+  const slots = useMemo(() => {
+    if (!selectedDate) return [];
+    const dur = calculatedDuration || 30;
+    // If no professional selected but there are professionals, show no slots (need to select)
+    if (professionals.length > 0 && !selectedProfessional) return [];
+    if (selectedProfessional && workHours.length === 0) return [];
+    // If no professionals exist, show basic time grid (no availability filtering)
+    if (professionals.length === 0) {
+      // Fallback: show all slots from 08:00 to 20:00, only filter by existing appointments
+      const allSlots = [];
+      for (let m = 8 * 60; m < 20 * 60; m += 15) {
+        const h = Math.floor(m / 60);
+        const mi = m % 60;
+        const slot = `${h.toString().padStart(2, "0")}:${mi.toString().padStart(2, "0")}`;
+        const occupied = dayAppointments.some(a => {
+          if (!a.start_time) return false;
+          const [sh, sm] = a.start_time.split(":").map(Number);
+          const aStart = sh * 60 + sm;
+          const aDur = a.calculated_duration_minutes || 30;
+          return m < aStart + aDur && m + dur > aStart;
+        });
+        allSlots.push({ slot, available: !occupied });
       }
-    });
-    return occupied;
-  }, [dayAppointments]);
-
-  // Check if selecting a slot would conflict
-  const wouldConflict = (slot: string) => {
-    if (!calculatedDuration) return occupiedSlots.has(slot);
-    const [h, m] = slot.split(":").map(Number);
-    const startMin = h * 60 + m;
-    for (let min = startMin; min < startMin + calculatedDuration; min += 30) {
-      const h2 = Math.floor(min / 60);
-      const m2 = min % 60;
-      if (occupiedSlots.has(`${h2.toString().padStart(2, "0")}:${m2 === 0 ? "00" : "30"}`)) return true;
+      return allSlots;
     }
-    return false;
-  };
+    return getAvailableSlots(selectedDate, workHours, timeBlocks, dayAppointments, dur);
+  }, [selectedDate, workHours, timeBlocks, dayAppointments, calculatedDuration, selectedProfessional, professionals]);
+
+  const noWorkHoursConfigured = selectedProfessional && workHours.length === 0;
 
   const updateStatus = async (id: string, status: string) => {
     const update: any = { status };
@@ -178,8 +182,6 @@ const AgendaPage = () => {
     try {
       const svc = services.find(s => s.id === selectedService);
       const dur = calculatedDuration || svc?.duration_minutes || 30;
-
-      // Calculate end_time
       const [h, m] = selectedTime.split(":").map(Number);
       const endMin = h * 60 + m + dur;
       const endH = Math.floor(endMin / 60);
@@ -255,7 +257,6 @@ const AgendaPage = () => {
                 </div>
               )}
 
-              {/* Tattoo variable fields */}
               {isVariable && (
                 <>
                   <div>
@@ -281,7 +282,6 @@ const AgendaPage = () => {
                 </>
               )}
 
-              {/* Duration display */}
               {calculatedDuration && (
                 <div className="p-3 rounded-lg bg-accent/50 border border-accent flex items-center gap-2">
                   <Clock className="w-4 h-4 text-muted-foreground" />
@@ -298,33 +298,40 @@ const AgendaPage = () => {
                 <Label>Data</Label>
                 <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} locale={ptBR}
                   disabled={date => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  className="rounded-md border mx-auto mt-1" />
+                  className="rounded-md border mx-auto mt-1 pointer-events-auto" />
               </div>
 
-              {selectedDate && (
+              {selectedDate && noWorkHoursConfigured && (
+                <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-sm text-amber-600">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>Configure os horários de trabalho deste profissional na aba Profissionais → Disponibilidade.</span>
+                </div>
+              )}
+
+              {selectedDate && !noWorkHoursConfigured && (
                 <div>
                   <Label>Horário</Label>
-                  <div className="grid grid-cols-4 gap-2 mt-1">
-                    {timeSlots.map(t => {
-                      const isOccupied = occupiedSlots.has(t);
-                      const conflicts = wouldConflict(t);
-                      return (
-                        <button key={t} type="button" onClick={() => !conflicts && setSelectedTime(t)}
-                          disabled={conflicts}
+                  {professionals.length > 0 && !selectedProfessional ? (
+                    <p className="text-sm text-muted-foreground mt-1">Selecione um profissional para ver horários.</p>
+                  ) : slots.length === 0 ? (
+                    <p className="text-sm text-muted-foreground mt-1">Sem horários disponíveis neste dia.</p>
+                  ) : (
+                    <div className="grid grid-cols-4 gap-2 mt-1">
+                      {slots.map(({ slot, available }) => (
+                        <button key={slot} type="button" onClick={() => available && setSelectedTime(slot)}
+                          disabled={!available}
                           className={`p-2 rounded-lg border text-sm transition-colors ${
-                            selectedTime === t
+                            selectedTime === slot
                               ? "border-foreground bg-accent font-medium"
-                              : isOccupied
-                                ? "border-destructive/30 bg-destructive/10 text-destructive cursor-not-allowed"
-                                : conflicts
-                                  ? "border-muted bg-muted/50 text-muted-foreground cursor-not-allowed"
-                                  : "border-border hover:border-foreground/30"
+                              : available
+                                ? "border-border hover:border-foreground/30"
+                                : "border-destructive/30 bg-destructive/10 text-destructive cursor-not-allowed"
                           }`}>
-                          {t}
+                          {slot}
                         </button>
-                      );
-                    })}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
