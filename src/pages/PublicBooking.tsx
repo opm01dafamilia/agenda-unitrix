@@ -8,36 +8,15 @@ import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { ptBR } from "date-fns/locale";
 import { format } from "date-fns";
-import { ArrowLeft, ArrowRight, MessageCircle, CheckCircle, Upload, Image, AlertTriangle } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageCircle, CheckCircle, Upload, Image, AlertTriangle, MapPin } from "lucide-react";
 import { getShowcaseHSL } from "@/lib/businessLabels";
 import { getAvailableSlots, type WorkHourEntry, type TimeBlockEntry, type AppointmentEntry } from "@/lib/availabilityUtils";
-
-const formatCPF = (v: string) => {
-  const d = v.replace(/\D/g, "").slice(0, 11);
-  if (d.length <= 3) return d;
-  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
-  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
-  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
-};
 
 const formatPhone = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
   if (d.length <= 2) return `(${d}`;
   if (d.length <= 7) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
   return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
-};
-
-const validateCPF = (cpf: string) => {
-  const d = cpf.replace(/\D/g, "");
-  if (d.length !== 11 || /^(\d)\1+$/.test(d)) return false;
-  let sum = 0;
-  for (let i = 0; i < 9; i++) sum += parseInt(d[i]) * (10 - i);
-  let r = (sum * 10) % 11; if (r === 10) r = 0;
-  if (r !== parseInt(d[9])) return false;
-  sum = 0;
-  for (let i = 0; i < 10; i++) sum += parseInt(d[i]) * (11 - i);
-  r = (sum * 10) % 11; if (r === 10) r = 0;
-  return r === parseInt(d[10]);
 };
 
 const bodyLocations = [
@@ -56,7 +35,6 @@ const PublicBooking = () => {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
-  // Availability
   const [workHours, setWorkHours] = useState<WorkHourEntry[]>([]);
   const [timeBlocks, setTimeBlocks] = useState<TimeBlockEntry[]>([]);
   const [dayAppointments, setDayAppointments] = useState<AppointmentEntry[]>([]);
@@ -66,7 +44,7 @@ const PublicBooking = () => {
   const photoRef = useRef<HTMLInputElement>(null);
 
   const [clientForm, setClientForm] = useState({
-    name: "", cpf: "", whatsapp: "", email: "", city: "",
+    name: "", whatsapp: "", email: "", city: "",
   });
   const [detailsForm, setDetailsForm] = useState({
     bodyLocation: "", sizeCm: "", hasPrevious: "", observations: "", serviceId: "",
@@ -103,7 +81,6 @@ const PublicBooking = () => {
     if (slug) fetchBusiness();
   }, [slug]);
 
-  // Fetch work hours + blocks when professional selected
   useEffect(() => {
     if (!selectedProfessional) { setWorkHours([]); setTimeBlocks([]); return; }
     Promise.all([
@@ -117,7 +94,6 @@ const PublicBooking = () => {
     });
   }, [selectedProfessional]);
 
-  // Fetch day appointments
   useEffect(() => {
     if (!selectedDate || !business) { setDayAppointments([]); return; }
     const dateStr = format(selectedDate, "yyyy-MM-dd");
@@ -126,19 +102,16 @@ const PublicBooking = () => {
       .then(({ data }) => setDayAppointments(data || []));
   }, [selectedDate, business]);
 
-  // Get service duration
   const serviceDuration = useMemo(() => {
     if (!detailsForm.serviceId) return 30;
     const svc = services.find(s => s.id === detailsForm.serviceId);
     return svc?.duration_minutes || 30;
   }, [detailsForm.serviceId, services]);
 
-  // Available slots
   const slots = useMemo(() => {
     if (!selectedDate) return [];
     if (professionals.length > 0 && !selectedProfessional) return [];
     if (selectedProfessional && workHours.length === 0) return [];
-    // If no professionals, show basic 08-20 slots filtered by appointments only
     if (professionals.length === 0) {
       const result = [];
       for (let m = 8 * 60; m < 20 * 60; m += 15) {
@@ -167,8 +140,7 @@ const PublicBooking = () => {
   };
 
   const goStep2 = () => {
-    if (!clientForm.name || !clientForm.cpf || !clientForm.whatsapp) { toast.error("Preencha nome, CPF e WhatsApp"); return; }
-    if (!validateCPF(clientForm.cpf)) { toast.error("CPF inválido"); return; }
+    if (!clientForm.name || !clientForm.whatsapp) { toast.error("Preencha nome e WhatsApp"); return; }
     setStep(2);
   };
 
@@ -197,13 +169,15 @@ const PublicBooking = () => {
         photoUrl = publicUrl;
       }
 
+      // Find or create client by whatsapp
+      const whatsappClean = clientForm.whatsapp.replace(/\D/g, "");
       const { data: existingClient } = await supabase.from("clients").select("id")
-        .eq("business_id", business.id).eq("cpf", clientForm.cpf.replace(/\D/g, "")).maybeSingle();
+        .eq("business_id", business.id).eq("whatsapp", whatsappClean).maybeSingle();
       let clientId = existingClient?.id;
       if (!clientId) {
         const { data: newClient, error: clientErr } = await supabase.from("clients").insert({
           business_id: business.id, name: clientForm.name,
-          cpf: clientForm.cpf.replace(/\D/g, ""), whatsapp: clientForm.whatsapp.replace(/\D/g, ""),
+          cpf: whatsappClean, whatsapp: whatsappClean,
           email: clientForm.email || null, city: clientForm.city || null,
         }).select("id").single();
         if (clientErr) throw clientErr;
@@ -220,8 +194,8 @@ const PublicBooking = () => {
         size_cm: detailsForm.sizeCm ? parseFloat(detailsForm.sizeCm) : null,
         has_previous_tattoo: detailsForm.hasPrevious === "yes" ? true : detailsForm.hasPrevious === "no" ? false : null,
         observations: detailsForm.observations || null, reference_photo_url: photoUrl,
-        client_name: clientForm.name, client_cpf: clientForm.cpf.replace(/\D/g, ""),
-        client_whatsapp: clientForm.whatsapp.replace(/\D/g, ""),
+        client_name: clientForm.name,
+        client_whatsapp: whatsappClean,
         client_email: clientForm.email || null, client_city: clientForm.city || null,
       });
       if (error) throw error;
@@ -236,8 +210,8 @@ const PublicBooking = () => {
   if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" /></div>;
   if (!business) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Negócio não encontrado</div>;
 
-  const whatsappNumber = selectedProfessional
-    ? professionals.find(p => p.id === selectedProfessional)?.whatsapp || null : null;
+  const selectedPro = professionals.find(p => p.id === selectedProfessional);
+  const whatsappNumber = selectedPro?.whatsapp || null;
   const whatsappMsg = encodeURIComponent(
     `Olá! Acabei de agendar pelo IA agenda para ${selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : ""} às ${selectedTime}.${referencePhoto ? " Segue a foto de referência." : ""}`
   );
@@ -247,15 +221,40 @@ const PublicBooking = () => {
   const accentBorderStyle = { borderColor: `hsl(${accentHsl})` };
   const accentBgLightStyle = { backgroundColor: `hsl(${accentHsl} / 0.1)` };
 
+  const proAddress = selectedPro?.address_line
+    ? `${selectedPro.address_line}${selectedPro.address_city ? `, ${selectedPro.address_city}` : ""}${selectedPro.address_state ? ` - ${selectedPro.address_state}` : ""}`
+    : null;
+  const mapsUrl = proAddress ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(proAddress)}` : null;
+
   if (done) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="text-center animate-fade-in max-w-sm">
           <CheckCircle className="w-16 h-16 mx-auto mb-4" style={accentStyle} />
           <h1 className="text-2xl font-bold mb-2">Agendamento realizado!</h1>
-          <p className="text-muted-foreground mb-6">
+          <p className="text-muted-foreground mb-4">
             {business.auto_accept_appointments ? "Seu horário está confirmado." : "Aguarde a confirmação do profissional."}
           </p>
+          {/* Address summary */}
+          {selectedPro && (
+            <div className="mb-4 p-4 rounded-xl border border-border bg-card text-left">
+              <p className="font-medium text-sm mb-1">{selectedPro.name}</p>
+              {proAddress ? (
+                <>
+                  <p className="text-sm text-muted-foreground">{proAddress}</p>
+                  {selectedPro.address_reference && (
+                    <p className="text-xs text-muted-foreground mt-0.5">Ref: {selectedPro.address_reference}</p>
+                  )}
+                  <a href={mapsUrl!} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm mt-2" style={accentStyle}>
+                    <MapPin className="w-3 h-3" /> Abrir no Maps
+                  </a>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">Endereço não informado pelo profissional.</p>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">Chegue com 10 min de antecedência.</p>
+            </div>
+          )}
           {(whatsappNumber || business.whatsapp) && (
             <a href={`https://wa.me/55${whatsappNumber || business.whatsapp}?text=${whatsappMsg}`} target="_blank" rel="noopener noreferrer">
               <Button className="w-full" style={accentBgStyle}>
@@ -270,15 +269,8 @@ const PublicBooking = () => {
 
   return (
     <div className="min-h-screen bg-background relative">
-      {gallery.length > 0 && (
-        <div className="fixed inset-0 z-0 overflow-hidden opacity-15">
-          <div className="flex animate-scroll-x gap-4 h-full items-center">
-            {[...gallery, ...gallery].map((img, i) => (
-              <img key={i} src={img.image_url} alt="" className="h-64 w-auto rounded-xl object-cover flex-shrink-0" loading="lazy" />
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Gallery Marquee Background */}
+      {gallery.length > 0 && <GalleryMarquee gallery={gallery} accentHsl={accentHsl} />}
 
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
@@ -296,25 +288,11 @@ const PublicBooking = () => {
             </div>
           </div>
 
-          {gallery.length > 0 && step === 1 && (
-            <div className="mb-4 -mx-2">
-              <div className="flex gap-2 overflow-x-auto pb-2 px-2 scrollbar-hide">
-                {gallery.slice(0, 8).map((img) => (
-                  <div key={img.id} className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors"
-                    style={{ borderColor: `hsl(${accentHsl} / 0.3)` }}>
-                    <img src={img.image_url} alt={img.caption || ""} className="w-full h-full object-cover" loading="lazy" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           <div className="p-6 rounded-xl bg-card border border-border/50 backdrop-blur-xl">
             {step === 1 && (
               <div className="space-y-4">
                 <h2 className="font-semibold">Seus dados</h2>
                 <div><Label>Nome completo *</Label><Input value={clientForm.name} onChange={(e) => setClientForm(p => ({ ...p, name: e.target.value }))} placeholder="Seu nome" /></div>
-                <div><Label>CPF *</Label><Input value={clientForm.cpf} onChange={(e) => setClientForm(p => ({ ...p, cpf: formatCPF(e.target.value) }))} placeholder="000.000.000-00" /></div>
                 <div><Label>WhatsApp *</Label><Input value={clientForm.whatsapp} onChange={(e) => setClientForm(p => ({ ...p, whatsapp: formatPhone(e.target.value) }))} placeholder="(11) 99999-9999" /></div>
                 <div><Label>Email</Label><Input type="email" value={clientForm.email} onChange={(e) => setClientForm(p => ({ ...p, email: e.target.value }))} placeholder="seu@email.com" /></div>
                 <div><Label>Cidade</Label><Input value={clientForm.city} onChange={(e) => setClientForm(p => ({ ...p, city: e.target.value }))} placeholder="São Paulo" /></div>
@@ -459,6 +437,41 @@ const PublicBooking = () => {
           </div>
         </div>
       </div>
+    </div>
+  );
+};
+
+// --- Gallery Marquee Component ---
+const GalleryMarquee = ({ gallery, accentHsl }: { gallery: any[]; accentHsl: string }) => {
+  const rows = useMemo(() => {
+    if (gallery.length <= 4) return [gallery];
+    if (gallery.length <= 8) {
+      const mid = Math.ceil(gallery.length / 2);
+      return [gallery.slice(0, mid), gallery.slice(mid)];
+    }
+    const third = Math.ceil(gallery.length / 3);
+    return [gallery.slice(0, third), gallery.slice(third, third * 2), gallery.slice(third * 2)];
+  }, [gallery]);
+
+  return (
+    <div className="fixed inset-0 z-0 overflow-hidden opacity-15 flex flex-col justify-center gap-3">
+      {rows.map((row, rowIdx) => {
+        const doubled = [...row, ...row, ...row, ...row];
+        const direction = rowIdx % 2 === 0 ? "left" : "right";
+        const duration = 30 + rowIdx * 10;
+        return (
+          <div key={rowIdx} className="marquee-row relative overflow-hidden" style={{ "--marquee-duration": `${duration}s`, "--marquee-direction": direction === "left" ? "normal" : "reverse" } as React.CSSProperties}>
+            <div className="marquee-track flex gap-3">
+              {doubled.map((img, i) => (
+                <img key={`${img.id}-${i}`} src={img.image_url} alt={img.caption || ""}
+                  className="h-40 w-auto rounded-xl object-cover flex-shrink-0 border-2"
+                  style={{ borderColor: `hsl(${accentHsl} / 0.2)` }}
+                  loading="lazy" />
+              ))}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 };
