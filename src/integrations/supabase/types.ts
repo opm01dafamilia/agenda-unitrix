@@ -244,6 +244,7 @@ export type Database = {
           premium_status: Database["public"]["Enums"]["premium_status"] | null
           premium_until: string | null
           profession_subtype: string | null
+          showcase_color: string | null
           slug: string
           theme_primary_color: string | null
           theme_secondary_color: string | null
@@ -275,6 +276,7 @@ export type Database = {
           premium_status?: Database["public"]["Enums"]["premium_status"] | null
           premium_until?: string | null
           profession_subtype?: string | null
+          showcase_color?: string | null
           slug: string
           theme_primary_color?: string | null
           theme_secondary_color?: string | null
@@ -306,6 +308,7 @@ export type Database = {
           premium_status?: Database["public"]["Enums"]["premium_status"] | null
           premium_until?: string | null
           profession_subtype?: string | null
+          showcase_color?: string | null
           slug?: string
           theme_primary_color?: string | null
           theme_secondary_color?: string | null
@@ -409,6 +412,122 @@ export type Database = {
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      professional_blocks: {
+        Row: {
+          all_day: boolean
+          block_date: string
+          business_id: string
+          created_at: string
+          end_time: string | null
+          id: string
+          professional_id: string
+          reason: string | null
+          start_time: string | null
+        }
+        Insert: {
+          all_day?: boolean
+          block_date: string
+          business_id: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          professional_id: string
+          reason?: string | null
+          start_time?: string | null
+        }
+        Update: {
+          all_day?: boolean
+          block_date?: string
+          business_id?: string
+          created_at?: string
+          end_time?: string | null
+          id?: string
+          professional_id?: string
+          reason?: string | null
+          start_time?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_blocks_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_blocks_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_blocks_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      professional_working_hours: {
+        Row: {
+          business_id: string
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          is_active: boolean
+          professional_id: string
+          start_time: string
+          updated_at: string
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          is_active?: boolean
+          professional_id: string
+          start_time: string
+          updated_at?: string
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          is_active?: boolean
+          professional_id?: string
+          start_time?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "professional_working_hours_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_working_hours_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "professional_working_hours_professional_id_fkey"
+            columns: ["professional_id"]
+            isOneToOne: false
+            referencedRelation: "professionals"
             referencedColumns: ["id"]
           },
         ]

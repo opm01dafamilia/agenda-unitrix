@@ -7,6 +7,7 @@ interface Business {
   name: string;
   slug: string;
   industry: string;
+  profession_subtype: string | null;
   whatsapp: string;
   email: string;
   city: string | null;
@@ -23,6 +24,7 @@ interface Business {
   address_neighborhood: string | null;
   address_complement: string | null;
   cpf: string;
+  showcase_color: string;
 }
 
 interface AuthContextType {

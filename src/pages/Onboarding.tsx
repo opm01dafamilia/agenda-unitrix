@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { designServiceSeeds } from "@/lib/businessLabels";
 
 const industries = [
   { value: "tattoo", label: "Tatuador", emoji: "🎨" },
@@ -41,6 +42,31 @@ const Onboarding = () => {
   const update = (field: string, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
+  const seedDesignServices = async (businessId: string, subtype: string) => {
+    const seeds = designServiceSeeds[subtype];
+    if (!seeds) return;
+
+    // Check if services already exist (idempotent)
+    const { data: existing } = await supabase
+      .from("services")
+      .select("name")
+      .eq("business_id", businessId);
+
+    const existingNames = new Set((existing || []).map((s: any) => s.name));
+    const toInsert = seeds
+      .filter(s => !existingNames.has(s.name))
+      .map(s => ({
+        business_id: businessId,
+        name: s.name,
+        duration_minutes: s.duration,
+        service_type: "padrao",
+      }));
+
+    if (toInsert.length > 0) {
+      await supabase.from("services").insert(toInsert);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.industry || !form.whatsapp || !form.city) {
@@ -61,7 +87,7 @@ const Onboarding = () => {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "") + "-" + Date.now().toString(36);
 
-      const { error } = await supabase.from("businesses").insert({
+      const { data: newBiz, error } = await supabase.from("businesses").insert({
         owner_id: user.id,
         name: form.name,
         slug,
@@ -71,8 +97,14 @@ const Onboarding = () => {
         whatsapp: form.whatsapp.replace(/\D/g, ""),
         email: user.email || "",
         city: form.city,
-      });
+      }).select("id").single();
       if (error) throw error;
+
+      // Seed default services for design businesses
+      if (form.industry === "design" && form.subtype && newBiz) {
+        await seedDesignServices(newBiz.id, form.subtype);
+      }
+
       await refreshBusiness();
       toast.success("Negócio criado com sucesso!");
       navigate("/dashboard");

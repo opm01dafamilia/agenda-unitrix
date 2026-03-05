@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { getBusinessLabels } from "@/lib/businessLabels";
 
 interface DurationRule {
   id: string;
@@ -28,6 +29,7 @@ interface ComplexityFactor {
 const ServicesPage = () => {
   const { business } = useAuth();
   const isTattoo = business?.industry === "tattoo";
+  const labels = getBusinessLabels(business?.industry, business?.profession_subtype);
   const [services, setServices] = useState<any[]>([]);
   const [name, setName] = useState("");
   const [duration, setDuration] = useState("30");
@@ -158,7 +160,7 @@ const ServicesPage = () => {
   return (
     <div className="animate-fade-in max-w-2xl mx-auto">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Serviços</h1>
+        <h1 className="text-2xl font-bold">{labels.services}</h1>
         {isTattoo && (
           <Dialog open={complexityDialog} onOpenChange={setComplexityDialog}>
             <DialogTrigger asChild>
@@ -189,7 +191,7 @@ const ServicesPage = () => {
       <div className="p-5 rounded-xl bg-card border border-border/50 mb-6">
         <h2 className="font-semibold mb-3">Adicionar serviço</h2>
         <div className="grid gap-3">
-          <div><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder={isTattoo ? "Ex: Tatuagem blackwork" : "Ex: Corte masculino"} /></div>
+          <div><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder={labels.servicesPlaceholder} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Duração padrão (min)</Label><Input type="number" value={duration} onChange={e => setDuration(e.target.value)} placeholder="30" /></div>
             {isTattoo && (

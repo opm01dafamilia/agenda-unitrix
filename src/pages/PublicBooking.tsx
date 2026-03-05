@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { ptBR } from "date-fns/locale";
 import { format } from "date-fns";
 import { ArrowLeft, ArrowRight, MessageCircle, CheckCircle, Upload, Image } from "lucide-react";
+import { getShowcaseHSL } from "@/lib/businessLabels";
 
 const formatCPF = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -57,7 +58,6 @@ const PublicBooking = () => {
   const [done, setDone] = useState(false);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
 
-  // Reference photo
   const [referencePhoto, setReferencePhoto] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
@@ -72,6 +72,9 @@ const PublicBooking = () => {
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedProfessional, setSelectedProfessional] = useState("");
 
+  // Showcase color
+  const accentHsl = getShowcaseHSL(business?.showcase_color || "gold");
+
   useEffect(() => {
     const fetchBusiness = async () => {
       const { data: bizData } = await supabase
@@ -81,7 +84,15 @@ const PublicBooking = () => {
         .maybeSingle();
       
       if (bizData) {
-        setBusiness(bizData);
+        // Fetch full business data for showcase_color
+        const { data: fullBiz } = await supabase
+          .from("businesses")
+          .select("showcase_color")
+          .eq("id", (bizData as any).id)
+          .maybeSingle();
+        
+        const merged = Object.assign({}, bizData, { showcase_color: (fullBiz as any)?.showcase_color || "gold" });
+        setBusiness(merged);
         const bizId = (bizData as any).id;
         const [galRes, prosRes, svcRes] = await Promise.all([
           supabase.from("gallery_images").select("*").eq("business_id", bizId).order("sort_order"),
@@ -139,7 +150,6 @@ const PublicBooking = () => {
     if (!selectedDate || !selectedTime) { toast.error("Selecione data e horário"); return; }
     setSubmitting(true);
     try {
-      // Upload reference photo if exists
       let photoUrl: string | null = null;
       if (referencePhoto && business) {
         const ext = referencePhoto.name.split(".").pop();
@@ -150,7 +160,6 @@ const PublicBooking = () => {
         photoUrl = publicUrl;
       }
 
-      // Create or find client
       const { data: existingClient } = await supabase
         .from("clients")
         .select("id")
@@ -209,24 +218,30 @@ const PublicBooking = () => {
     ? professionals.find(p => p.id === selectedProfessional)?.whatsapp || null
     : null;
 
-  // Build WhatsApp message
   const whatsappMsg = encodeURIComponent(
     `Olá! Acabei de agendar pelo IA agenda para ${selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : ""} às ${selectedTime}.${referencePhoto ? " Segue a foto de referência." : ""}`
   );
-  const whatsappLink = `https://wa.me/55${whatsappNumber || ""}?text=${whatsappMsg}`;
+
+  // Dynamic accent style
+  const accentStyle = { color: `hsl(${accentHsl})` };
+  const accentBgStyle = { backgroundColor: `hsl(${accentHsl})` };
+  const accentBorderStyle = { borderColor: `hsl(${accentHsl})` };
+  const accentBgLightStyle = { backgroundColor: `hsl(${accentHsl} / 0.1)` };
 
   if (done) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="text-center animate-fade-in max-w-sm">
-          <CheckCircle className="w-16 h-16 text-primary mx-auto mb-4" />
+          <CheckCircle className="w-16 h-16 mx-auto mb-4" style={accentStyle} />
           <h1 className="text-2xl font-bold mb-2">Agendamento realizado!</h1>
           <p className="text-muted-foreground mb-6">
             {business.auto_accept_appointments ? "Seu horário está confirmado." : "Aguarde a confirmação do profissional."}
           </p>
           {(whatsappNumber || business.whatsapp) && (
             <a href={`https://wa.me/55${whatsappNumber || business.whatsapp}?text=${whatsappMsg}`} target="_blank" rel="noopener noreferrer">
-              <Button className="w-full"><MessageCircle className="w-4 h-4 mr-2" /> Chamar no WhatsApp</Button>
+              <Button className="w-full" style={accentBgStyle}>
+                <MessageCircle className="w-4 h-4 mr-2" /> Chamar no WhatsApp
+              </Button>
             </a>
           )}
         </div>
@@ -251,15 +266,32 @@ const PublicBooking = () => {
         <div className="w-full max-w-md">
           {/* Header */}
           <div className="text-center mb-6">
-            {business.avatar_url && <img src={business.avatar_url} alt="" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-2 border-primary/30" />}
+            {business.avatar_url && (
+              <img src={business.avatar_url} alt="" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-2" style={{ borderColor: `hsl(${accentHsl} / 0.5)` }} />
+            )}
             <h1 className="text-xl font-bold">{business.name}</h1>
             <p className="text-muted-foreground text-sm">{business.city}</p>
             <div className="flex gap-2 justify-center mt-4">
               {[1, 2, 3].map((s) => (
-                <div key={s} className={`h-1 w-10 rounded-full transition-colors ${s <= step ? "bg-primary" : "bg-muted"}`} />
+                <div key={s} className="h-1 w-10 rounded-full transition-colors"
+                  style={s <= step ? accentBgStyle : { backgroundColor: "hsl(var(--muted))" }} />
               ))}
             </div>
           </div>
+
+          {/* Gallery showcase */}
+          {gallery.length > 0 && step === 1 && (
+            <div className="mb-4 -mx-2">
+              <div className="flex gap-2 overflow-x-auto pb-2 px-2 scrollbar-hide">
+                {gallery.slice(0, 8).map((img) => (
+                  <div key={img.id} className="flex-shrink-0 w-20 h-20 rounded-lg overflow-hidden border-2 transition-colors"
+                    style={{ borderColor: `hsl(${accentHsl} / 0.3)` }}>
+                    <img src={img.image_url} alt={img.caption || ""} className="w-full h-full object-cover" loading="lazy" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="p-6 rounded-xl bg-card border border-border/50 backdrop-blur-xl">
             {step === 1 && (
@@ -270,7 +302,9 @@ const PublicBooking = () => {
                 <div><Label>WhatsApp *</Label><Input value={clientForm.whatsapp} onChange={(e) => setClientForm(p => ({ ...p, whatsapp: formatPhone(e.target.value) }))} placeholder="(11) 99999-9999" /></div>
                 <div><Label>Email</Label><Input type="email" value={clientForm.email} onChange={(e) => setClientForm(p => ({ ...p, email: e.target.value }))} placeholder="seu@email.com" /></div>
                 <div><Label>Cidade</Label><Input value={clientForm.city} onChange={(e) => setClientForm(p => ({ ...p, city: e.target.value }))} placeholder="São Paulo" /></div>
-                <Button className="w-full" onClick={goStep2}>Próximo <ArrowRight className="w-4 h-4 ml-2" /></Button>
+                <Button className="w-full" onClick={goStep2} style={accentBgStyle}>
+                  Próximo <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
               </div>
             )}
 
@@ -284,7 +318,8 @@ const PublicBooking = () => {
                       <div className="grid grid-cols-3 gap-2 mt-1">
                         {bodyLocations.map((loc) => (
                           <button key={loc} type="button" onClick={() => setDetailsForm(p => ({ ...p, bodyLocation: loc }))}
-                            className={`p-2 rounded-lg border text-xs transition-colors ${detailsForm.bodyLocation === loc ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50"}`}>
+                            className="p-2 rounded-lg border text-xs transition-colors"
+                            style={detailsForm.bodyLocation === loc ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
                             {loc}
                           </button>
                         ))}
@@ -296,13 +331,13 @@ const PublicBooking = () => {
                       <div className="flex gap-2 mt-1">
                         {[{ v: "yes", l: "Sim" }, { v: "no", l: "Não" }].map((o) => (
                           <button key={o.v} type="button" onClick={() => setDetailsForm(p => ({ ...p, hasPrevious: o.v }))}
-                            className={`flex-1 p-2 rounded-lg border text-sm ${detailsForm.hasPrevious === o.v ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>
+                            className="flex-1 p-2 rounded-lg border text-sm"
+                            style={detailsForm.hasPrevious === o.v ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
                             {o.l}
                           </button>
                         ))}
                       </div>
                     </div>
-                    {/* Reference photo */}
                     <div>
                       <Label>Foto de referência *</Label>
                       <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
@@ -313,7 +348,8 @@ const PublicBooking = () => {
                             className="absolute top-2 right-2 w-6 h-6 bg-destructive rounded-full flex items-center justify-center text-destructive-foreground text-xs">✕</button>
                         </div>
                       ) : (
-                        <button onClick={() => photoRef.current?.click()} className="mt-2 w-full h-32 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground hover:border-primary/50 transition-colors">
+                        <button onClick={() => photoRef.current?.click()} className="mt-2 w-full h-32 rounded-lg border-2 border-dashed border-border flex flex-col items-center justify-center text-muted-foreground hover:border-opacity-50 transition-colors"
+                          style={{ borderColor: `hsl(${accentHsl} / 0.3)` }}>
                           <Image className="w-8 h-8 mb-2 opacity-50" />
                           <span className="text-sm">Toque para enviar foto</span>
                         </button>
@@ -327,7 +363,8 @@ const PublicBooking = () => {
                     <div className="space-y-2">
                       {services.map((s) => (
                         <button key={s.id} type="button" onClick={() => setDetailsForm(p => ({ ...p, serviceId: s.id }))}
-                          className={`w-full p-3 rounded-lg border text-left transition-colors ${detailsForm.serviceId === s.id ? "border-primary bg-primary/10" : "border-border hover:border-primary/50"}`}>
+                          className="w-full p-3 rounded-lg border text-left transition-colors"
+                          style={detailsForm.serviceId === s.id ? { ...accentBorderStyle, ...accentBgLightStyle } : undefined}>
                           <div className="font-medium text-sm">{s.name}</div>
                           <div className="text-xs text-muted-foreground">{s.duration_minutes}min{s.price ? ` • R$ ${Number(s.price).toFixed(2)}` : ""}</div>
                         </button>
@@ -337,7 +374,7 @@ const PublicBooking = () => {
                 )}
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4" /></Button>
-                  <Button className="flex-1" onClick={goStep3}>Próximo <ArrowRight className="w-4 h-4 ml-2" /></Button>
+                  <Button className="flex-1" onClick={goStep3} style={accentBgStyle}>Próximo <ArrowRight className="w-4 h-4 ml-2" /></Button>
                 </div>
               </div>
             )}
@@ -360,7 +397,8 @@ const PublicBooking = () => {
                       <div className="grid grid-cols-4 gap-2 mt-1">
                         {availableSlots.map((t) => (
                           <button key={t} type="button" onClick={() => setSelectedTime(t)}
-                            className={`p-2 rounded-lg border text-sm transition-colors ${selectedTime === t ? "border-primary bg-primary/10 text-primary" : "border-border hover:border-primary/50"}`}>
+                            className="p-2 rounded-lg border text-sm transition-colors"
+                            style={selectedTime === t ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
                             {t}
                           </button>
                         ))}
@@ -373,7 +411,8 @@ const PublicBooking = () => {
                         <div className="grid grid-cols-2 gap-2 mt-1">
                           {professionals.map((p) => (
                             <button key={p.id} type="button" onClick={() => setSelectedProfessional(p.id)}
-                              className={`p-2 rounded-lg border text-sm ${selectedProfessional === p.id ? "border-primary bg-primary/10 text-primary" : "border-border"}`}>
+                              className="p-2 rounded-lg border text-sm"
+                              style={selectedProfessional === p.id ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
                               {p.name}
                             </button>
                           ))}
@@ -384,7 +423,9 @@ const PublicBooking = () => {
                 )}
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setStep(2)}><ArrowLeft className="w-4 h-4" /></Button>
-                  <Button className="flex-1" onClick={handleSubmit} disabled={submitting}>{submitting ? "Agendando..." : "Confirmar agendamento"}</Button>
+                  <Button className="flex-1" onClick={handleSubmit} disabled={submitting} style={accentBgStyle}>
+                    {submitting ? "Agendando..." : "Confirmar agendamento"}
+                  </Button>
                 </div>
               </div>
             )}
