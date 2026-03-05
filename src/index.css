@@ -4,6 +4,23 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Marquee animation */
+.marquee-row {
+  width: 100%;
+}
+.marquee-track {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll var(--marquee-duration, 30s) linear infinite var(--marquee-direction, normal);
+}
+.marquee-row:hover .marquee-track {
+  animation-play-state: paused;
+}
+@keyframes marquee-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;

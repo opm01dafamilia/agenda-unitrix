@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { UserPlus, Trash2, Phone, Clock, CalendarOff, Plus, X } from "lucide-react";
+import { UserPlus, Trash2, Phone, Clock, CalendarOff, Plus, X, MapPin } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -20,7 +20,7 @@ const timeOptions = Array.from({ length: 49 }, (_, i) => {
   const h = Math.floor(i / 2) + 6;
   const m = i % 2 === 0 ? "00" : "30";
   return `${h.toString().padStart(2, "0")}:${m}`;
-}).filter((_, i) => i < 37); // 06:00 to 23:30
+}).filter((_, i) => i < 37);
 
 interface WorkHour {
   id: string;
@@ -44,6 +44,8 @@ const ProfessionalsPage = () => {
   const [whatsapp, setWhatsapp] = useState("");
   const [adding, setAdding] = useState(false);
   const [selectedPro, setSelectedPro] = useState<string | null>(null);
+  const [editingAddress, setEditingAddress] = useState<string | null>(null);
+  const [addressForm, setAddressForm] = useState({ address_line: "", address_city: "", address_state: "", address_reference: "" });
 
   const fetchPros = async () => {
     if (!business) return;
@@ -85,6 +87,28 @@ const ProfessionalsPage = () => {
     fetchPros();
   };
 
+  const startEditAddress = (p: any) => {
+    setEditingAddress(editingAddress === p.id ? null : p.id);
+    setAddressForm({
+      address_line: p.address_line || "",
+      address_city: p.address_city || "",
+      address_state: p.address_state || "",
+      address_reference: p.address_reference || "",
+    });
+  };
+
+  const saveAddress = async (id: string) => {
+    await supabase.from("professionals").update({
+      address_line: addressForm.address_line || null,
+      address_city: addressForm.address_city || null,
+      address_state: addressForm.address_state || null,
+      address_reference: addressForm.address_reference || null,
+    }).eq("id", id);
+    toast.success("Endereço salvo!");
+    setEditingAddress(null);
+    fetchPros();
+  };
+
   return (
     <div className="animate-fade-in max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold mb-6">Profissionais</h1>
@@ -114,15 +138,32 @@ const ProfessionalsPage = () => {
                 <div className="cursor-pointer flex-1" onClick={() => setSelectedPro(selectedPro === p.id ? null : p.id)}>
                   <div className="font-medium">{p.name}</div>
                   {p.whatsapp && <div className="text-sm text-muted-foreground flex items-center gap-1"><Phone className="w-3 h-3" />{p.whatsapp}</div>}
+                  {p.address_line && <div className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5"><MapPin className="w-3 h-3" />{p.address_line}{p.address_city ? `, ${p.address_city}` : ""}</div>}
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => startEditAddress(p)}>
+                    <MapPin className="w-4 h-4" />
+                  </Button>
                   <Button variant="ghost" size="sm" onClick={() => setSelectedPro(selectedPro === p.id ? null : p.id)}>
-                    <Clock className="w-4 h-4 mr-1" /> Disponibilidade
+                    <Clock className="w-4 h-4" />
                   </Button>
                   <Switch checked={p.active} onCheckedChange={() => toggleActive(p.id, p.active)} />
                   <Button variant="ghost" size="icon" onClick={() => deletePro(p.id)}><Trash2 className="w-4 h-4 text-destructive" /></Button>
                 </div>
               </div>
+              {/* Address editor */}
+              {editingAddress === p.id && (
+                <div className="border-t border-border p-4 space-y-3">
+                  <h4 className="text-sm font-semibold flex items-center gap-1"><MapPin className="w-3 h-3" /> Endereço do profissional</h4>
+                  <div><Label className="text-xs">Rua/Av + Número</Label><Input value={addressForm.address_line} onChange={e => setAddressForm(p => ({ ...p, address_line: e.target.value }))} placeholder="Rua Exemplo, 123" /></div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><Label className="text-xs">Cidade</Label><Input value={addressForm.address_city} onChange={e => setAddressForm(p => ({ ...p, address_city: e.target.value }))} placeholder="São Paulo" /></div>
+                    <div><Label className="text-xs">Estado</Label><Input value={addressForm.address_state} onChange={e => setAddressForm(p => ({ ...p, address_state: e.target.value }))} placeholder="SP" /></div>
+                  </div>
+                  <div><Label className="text-xs">Ponto de referência</Label><Input value={addressForm.address_reference} onChange={e => setAddressForm(p => ({ ...p, address_reference: e.target.value }))} placeholder="Próximo ao mercado..." /></div>
+                  <Button size="sm" onClick={() => saveAddress(p.id)}>Salvar endereço</Button>
+                </div>
+              )}
               {selectedPro === p.id && (
                 <div className="border-t border-border p-4">
                   <AvailabilityPanel professionalId={p.id} businessId={business!.id} />
@@ -253,7 +294,6 @@ const BlocksEditor = ({ professionalId, businessId }: { professionalId: string; 
     const bStart = new Date(`${dateStr}T${blockStart}:00`);
     const bEnd = new Date(`${dateStr}T${blockEnd}:00`);
 
-    // Check overlap
     const dayBlocks = blocks.filter(b => {
       const bs = new Date(b.block_start);
       return format(bs, "yyyy-MM-dd") === dateStr;
@@ -291,7 +331,6 @@ const BlocksEditor = ({ professionalId, businessId }: { professionalId: string; 
     fetchBlocks();
   };
 
-  // Filter blocks for selected date
   const filteredBlocks = selectedDate
     ? blocks.filter(b => format(new Date(b.block_start), "yyyy-MM-dd") === format(selectedDate, "yyyy-MM-dd"))
     : blocks.slice(0, 20);
@@ -339,7 +378,6 @@ const BlocksEditor = ({ professionalId, businessId }: { professionalId: string; 
         </div>
       )}
 
-      {/* Block list */}
       <div>
         <h4 className="text-sm font-semibold mb-2">{selectedDate ? `Bloqueios em ${format(selectedDate, "dd/MM", { locale: ptBR })}` : "Bloqueios recentes"}</h4>
         {filteredBlocks.length === 0 ? (

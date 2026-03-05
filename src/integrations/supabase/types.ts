@@ -529,6 +529,10 @@ export type Database = {
       professionals: {
         Row: {
           active: boolean | null
+          address_city: string | null
+          address_line: string | null
+          address_reference: string | null
+          address_state: string | null
           business_id: string
           created_at: string
           id: string
@@ -537,6 +541,10 @@ export type Database = {
         }
         Insert: {
           active?: boolean | null
+          address_city?: string | null
+          address_line?: string | null
+          address_reference?: string | null
+          address_state?: string | null
           business_id: string
           created_at?: string
           id?: string
@@ -545,6 +553,10 @@ export type Database = {
         }
         Update: {
           active?: boolean | null
+          address_city?: string | null
+          address_line?: string | null
+          address_reference?: string | null
+          address_state?: string | null
           business_id?: string
           created_at?: string
           id?: string
