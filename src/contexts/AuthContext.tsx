@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -53,6 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [business, setBusiness] = useState<Business | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const initializedRef = useRef(false);
 
   const checkAdmin = async (userId: string, email: string) => {
     if (ADMIN_EMAILS.includes(email)) {
@@ -81,30 +82,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (user) await fetchBusiness(user.id);
   };
 
+  const handleSession = async (newSession: Session | null) => {
+    setSession(newSession);
+    setUser(newSession?.user ?? null);
+    if (newSession?.user) {
+      await Promise.all([
+        checkAdmin(newSession.user.id, newSession.user.email || ""),
+        fetchBusiness(newSession.user.id),
+      ]);
+    } else {
+      setBusiness(null);
+      setIsAdmin(false);
+    }
+    setIsLoading(false);
+  };
+
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
+    // Set up listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          await checkAdmin(session.user.id, session.user.email || "");
-          await fetchBusiness(session.user.id);
-        } else {
-          setBusiness(null);
-          setIsAdmin(false);
-        }
-        setIsLoading(false);
+      async (_event, newSession) => {
+        // Only handle changes after initial load
+        await handleSession(newSession);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        checkAdmin(session.user.id, session.user.email || "");
-        fetchBusiness(session.user.id);
-      }
-      setIsLoading(false);
+    // Then get current session
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      handleSession(currentSession);
     });
 
     return () => subscription.unsubscribe();

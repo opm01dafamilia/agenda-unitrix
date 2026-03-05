@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Eye, EyeOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -13,11 +13,21 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const submittingRef = useRef(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setLoading(true);
     try {
+      // Check for existing session first
+      const { data: { session: existing } } = await supabase.auth.getSession();
+      if (existing) {
+        navigate("/dashboard");
+        return;
+      }
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) {
         if (error.message === "Invalid login credentials") {
@@ -26,8 +36,10 @@ const Login = () => {
           toast.error("Email não confirmado. Verifique sua caixa de entrada.");
         } else if (error.message?.includes("rate limit")) {
           toast.error("Muitas tentativas. Aguarde um momento.");
+        } else if (error.message?.includes("lock") || error.message?.includes("timed out")) {
+          toast.error("Não foi possível concluir seu login agora. Tente novamente em alguns segundos.");
         } else {
-          toast.error(error.message);
+          toast.error(error.message || "Erro ao fazer login.");
         }
         return;
       }
@@ -47,9 +59,10 @@ const Login = () => {
 
       navigate("/dashboard");
     } catch (err: any) {
-      toast.error("Erro ao fazer login. Tente novamente.");
+      toast.error("Não foi possível concluir seu login agora. Tente novamente em alguns segundos.");
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 
