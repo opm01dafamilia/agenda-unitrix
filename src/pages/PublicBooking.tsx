@@ -91,7 +91,8 @@ const PublicBooking = () => {
           .eq("id", (bizData as any).id)
           .maybeSingle();
         
-        setBusiness({ ...bizData, showcase_color: (fullBiz as any)?.showcase_color || "gold" });
+        const merged = Object.assign({}, bizData, { showcase_color: (fullBiz as any)?.showcase_color || "gold" });
+        setBusiness(merged);
         const bizId = (bizData as any).id;
         const [galRes, prosRes, svcRes] = await Promise.all([
           supabase.from("gallery_images").select("*").eq("business_id", bizId).order("sort_order"),
