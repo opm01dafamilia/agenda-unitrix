@@ -6,11 +6,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Upload, Camera, Eye, EyeOff } from "lucide-react";
+import { showcaseColors, getShowcaseHSL } from "@/lib/businessLabels";
 
 const SettingsPage = () => {
   const { business, refreshBusiness } = useAuth();
   const [address, setAddress] = useState({ street: "", number: "", zip: "", neighborhood: "", complement: "" });
   const [templates, setTemplates] = useState({ client: "", professional: "" });
+  const [showcaseColor, setShowcaseColor] = useState("gold");
   const [saving, setSaving] = useState(false);
 
   // Avatar
@@ -26,6 +28,7 @@ const SettingsPage = () => {
   useEffect(() => {
     if (business) {
       setAvatarUrl(business.avatar_url);
+      setShowcaseColor(business.showcase_color || "gold");
       setAddress({
         street: business.address_street || "",
         number: business.address_number || "",
@@ -73,7 +76,8 @@ const SettingsPage = () => {
         address_complement: address.complement || null,
         message_template_client: templates.client,
         message_template_professional: templates.professional,
-      }).eq("id", business.id);
+        showcase_color: showcaseColor,
+      } as any).eq("id", business.id);
       toast.success("Configurações salvas!");
       await refreshBusiness();
     } catch (err: any) {
@@ -124,6 +128,24 @@ const SettingsPage = () => {
               </Button>
               <p className="text-xs text-muted-foreground mt-1">Aparece no link público</p>
             </div>
+          </div>
+        </div>
+
+        {/* Showcase Color */}
+        <div className="p-5 rounded-xl border border-border bg-card">
+          <h2 className="font-semibold mb-3">Cor da vitrine</h2>
+          <p className="text-sm text-muted-foreground mb-3">Escolha a cor de destaque do seu link público.</p>
+          <div className="flex gap-3">
+            {showcaseColors.map(c => (
+              <button
+                key={c.value}
+                onClick={() => setShowcaseColor(c.value)}
+                className={`flex flex-col items-center gap-1.5 p-2 rounded-lg border-2 transition-all ${showcaseColor === c.value ? "border-foreground scale-105" : "border-transparent hover:border-border"}`}
+              >
+                <div className="w-10 h-10 rounded-full border border-border" style={{ backgroundColor: `hsl(${c.hsl})` }} />
+                <span className="text-xs">{c.label}</span>
+              </button>
+            ))}
           </div>
         </div>
 

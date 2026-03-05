@@ -9,6 +9,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
 import { supabase } from "@/integrations/supabase/client";
+import { getBusinessLabels } from "@/lib/businessLabels";
 
 const DashboardLayout = () => {
   const location = useLocation();
@@ -17,6 +18,8 @@ const DashboardLayout = () => {
   const { theme, toggleTheme } = useTheme();
   const [accessBlocked, setAccessBlocked] = useState(false);
   const [accessLoading, setAccessLoading] = useState(true);
+
+  const labels = getBusinessLabels(business?.industry, business?.profession_subtype);
 
   useEffect(() => {
     if (!user) return;
@@ -71,13 +74,13 @@ const DashboardLayout = () => {
 
   const navItems = [
     { path: "/dashboard", icon: LayoutDashboard, label: "Dashboard" },
-    { path: "/dashboard/agenda", icon: Calendar, label: "Agenda" },
+    { path: "/dashboard/agenda", icon: Calendar, label: labels.agenda },
     { path: "/dashboard/appointments", icon: CalendarCheck, label: "Agendamentos" },
     { path: "/dashboard/clients", icon: Users, label: "Clientes" },
-    { path: "/dashboard/services", icon: Scissors, label: "Serviços" },
+    { path: "/dashboard/services", icon: Scissors, label: labels.services },
     { path: "/dashboard/professionals", icon: UserPlus, label: "Profissionais" },
     { path: "/dashboard/public-link", icon: Link2, label: "Link Público" },
-    { path: "/dashboard/gallery", icon: Image, label: "Galeria" },
+    { path: "/dashboard/gallery", icon: Image, label: labels.gallery },
     { path: "/dashboard/settings", icon: Settings, label: "Configurações" },
   ];
 
