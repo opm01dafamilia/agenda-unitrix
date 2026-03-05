@@ -416,57 +416,51 @@ export type Database = {
           },
         ]
       }
-      professional_blocks: {
+      professional_time_blocks: {
         Row: {
-          all_day: boolean
-          block_date: string
+          block_end: string
+          block_start: string
           business_id: string
           created_at: string
-          end_time: string | null
           id: string
           professional_id: string
           reason: string | null
-          start_time: string | null
         }
         Insert: {
-          all_day?: boolean
-          block_date: string
+          block_end: string
+          block_start: string
           business_id: string
           created_at?: string
-          end_time?: string | null
           id?: string
           professional_id: string
           reason?: string | null
-          start_time?: string | null
         }
         Update: {
-          all_day?: boolean
-          block_date?: string
+          block_end?: string
+          block_start?: string
           business_id?: string
           created_at?: string
-          end_time?: string | null
           id?: string
           professional_id?: string
           reason?: string | null
-          start_time?: string | null
         }
         Relationships: [
           {
-            foreignKeyName: "professional_blocks_business_id_fkey"
+            foreignKeyName: "professional_time_blocks_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "professional_blocks_business_id_fkey"
+            foreignKeyName: "professional_time_blocks_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses_public"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "professional_blocks_professional_id_fkey"
+            foreignKeyName: "professional_time_blocks_professional_id_fkey"
             columns: ["professional_id"]
             isOneToOne: false
             referencedRelation: "professionals"
@@ -474,57 +468,57 @@ export type Database = {
           },
         ]
       }
-      professional_working_hours: {
+      professional_work_hours: {
         Row: {
           business_id: string
           created_at: string
-          day_of_week: number
           end_time: string
           id: string
           is_active: boolean
           professional_id: string
           start_time: string
           updated_at: string
+          weekday: number
         }
         Insert: {
           business_id: string
           created_at?: string
-          day_of_week: number
           end_time: string
           id?: string
           is_active?: boolean
           professional_id: string
           start_time: string
           updated_at?: string
+          weekday: number
         }
         Update: {
           business_id?: string
           created_at?: string
-          day_of_week?: number
           end_time?: string
           id?: string
           is_active?: boolean
           professional_id?: string
           start_time?: string
           updated_at?: string
+          weekday?: number
         }
         Relationships: [
           {
-            foreignKeyName: "professional_working_hours_business_id_fkey"
+            foreignKeyName: "professional_work_hours_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "professional_working_hours_business_id_fkey"
+            foreignKeyName: "professional_work_hours_business_id_fkey"
             columns: ["business_id"]
             isOneToOne: false
             referencedRelation: "businesses_public"
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "professional_working_hours_professional_id_fkey"
+            foreignKeyName: "professional_work_hours_professional_id_fkey"
             columns: ["professional_id"]
             isOneToOne: false
             referencedRelation: "professionals"

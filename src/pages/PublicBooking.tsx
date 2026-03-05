@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,8 +8,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { toast } from "sonner";
 import { ptBR } from "date-fns/locale";
 import { format } from "date-fns";
-import { ArrowLeft, ArrowRight, MessageCircle, CheckCircle, Upload, Image } from "lucide-react";
+import { ArrowLeft, ArrowRight, MessageCircle, CheckCircle, Upload, Image, AlertTriangle } from "lucide-react";
 import { getShowcaseHSL } from "@/lib/businessLabels";
+import { getAvailableSlots, type WorkHourEntry, type TimeBlockEntry, type AppointmentEntry } from "@/lib/availabilityUtils";
 
 const formatCPF = (v: string) => {
   const d = v.replace(/\D/g, "").slice(0, 11);
@@ -44,8 +45,6 @@ const bodyLocations = [
   "Coxa", "Panturrilha", "Mão", "Pé", "Pescoço", "Costela", "Outro"
 ];
 
-const timeSlots = ["08:00","08:30","09:00","09:30","10:00","10:30","11:00","11:30","12:00","12:30","13:00","13:30","14:00","14:30","15:00","15:30","16:00","16:30","17:00","17:30","18:00","18:30","19:00","19:30","20:00"];
-
 const PublicBooking = () => {
   const { slug } = useParams();
   const [step, setStep] = useState(1);
@@ -56,7 +55,11 @@ const PublicBooking = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+
+  // Availability
+  const [workHours, setWorkHours] = useState<WorkHourEntry[]>([]);
+  const [timeBlocks, setTimeBlocks] = useState<TimeBlockEntry[]>([]);
+  const [dayAppointments, setDayAppointments] = useState<AppointmentEntry[]>([]);
 
   const [referencePhoto, setReferencePhoto] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
@@ -72,25 +75,15 @@ const PublicBooking = () => {
   const [selectedTime, setSelectedTime] = useState("");
   const [selectedProfessional, setSelectedProfessional] = useState("");
 
-  // Showcase color
   const accentHsl = getShowcaseHSL(business?.showcase_color || "gold");
 
   useEffect(() => {
     const fetchBusiness = async () => {
       const { data: bizData } = await supabase
-        .from("businesses_public" as any)
-        .select("*")
-        .eq("slug", slug)
-        .maybeSingle();
-      
+        .from("businesses_public" as any).select("*").eq("slug", slug).maybeSingle();
       if (bizData) {
-        // Fetch full business data for showcase_color
-        const { data: fullBiz } = await supabase
-          .from("businesses")
-          .select("showcase_color")
-          .eq("id", (bizData as any).id)
-          .maybeSingle();
-        
+        const { data: fullBiz } = await supabase.from("businesses")
+          .select("showcase_color").eq("id", (bizData as any).id).maybeSingle();
         const merged = Object.assign({}, bizData, { showcase_color: (fullBiz as any)?.showcase_color || "gold" });
         setBusiness(merged);
         const bizId = (bizData as any).id;
@@ -110,27 +103,71 @@ const PublicBooking = () => {
     if (slug) fetchBusiness();
   }, [slug]);
 
+  // Fetch work hours + blocks when professional selected
   useEffect(() => {
-    if (!selectedDate || !business) return;
+    if (!selectedProfessional) { setWorkHours([]); setTimeBlocks([]); return; }
+    Promise.all([
+      supabase.from("professional_work_hours").select("weekday, start_time, end_time, is_active")
+        .eq("professional_id", selectedProfessional).eq("is_active", true),
+      supabase.from("professional_time_blocks").select("block_start, block_end")
+        .eq("professional_id", selectedProfessional),
+    ]).then(([whRes, tbRes]) => {
+      setWorkHours(whRes.data || []);
+      setTimeBlocks(tbRes.data || []);
+    });
+  }, [selectedProfessional]);
+
+  // Fetch day appointments
+  useEffect(() => {
+    if (!selectedDate || !business) { setDayAppointments([]); return; }
     const dateStr = format(selectedDate, "yyyy-MM-dd");
-    supabase.from("appointments").select("start_time").eq("business_id", business.id).eq("appointment_date", dateStr)
-      .then(({ data }) => setBookedSlots((data || []).map((a: any) => a.start_time?.slice(0, 5))));
+    supabase.from("appointments").select("start_time, end_time, calculated_duration_minutes, status")
+      .eq("business_id", business.id).eq("appointment_date", dateStr).neq("status", "cancelled")
+      .then(({ data }) => setDayAppointments(data || []));
   }, [selectedDate, business]);
 
-  const availableSlots = timeSlots.filter(t => !bookedSlots.includes(t));
+  // Get service duration
+  const serviceDuration = useMemo(() => {
+    if (!detailsForm.serviceId) return 30;
+    const svc = services.find(s => s.id === detailsForm.serviceId);
+    return svc?.duration_minutes || 30;
+  }, [detailsForm.serviceId, services]);
+
+  // Available slots
+  const slots = useMemo(() => {
+    if (!selectedDate) return [];
+    if (professionals.length > 0 && !selectedProfessional) return [];
+    if (selectedProfessional && workHours.length === 0) return [];
+    // If no professionals, show basic 08-20 slots filtered by appointments only
+    if (professionals.length === 0) {
+      const result = [];
+      for (let m = 8 * 60; m < 20 * 60; m += 15) {
+        const h = Math.floor(m / 60);
+        const mi = m % 60;
+        const slot = `${h.toString().padStart(2, "0")}:${mi.toString().padStart(2, "0")}`;
+        const occupied = dayAppointments.some(a => {
+          if (!a.start_time) return false;
+          const [sh, sm] = a.start_time.split(":").map(Number);
+          const aStart = sh * 60 + sm;
+          const aDur = a.calculated_duration_minutes || 30;
+          return m < aStart + aDur && m + serviceDuration > aStart;
+        });
+        result.push({ slot, available: !occupied });
+      }
+      return result;
+    }
+    return getAvailableSlots(selectedDate, workHours, timeBlocks, dayAppointments, serviceDuration);
+  }, [selectedDate, workHours, timeBlocks, dayAppointments, serviceDuration, selectedProfessional, professionals]);
+
+  const noWorkHoursConfigured = selectedProfessional && workHours.length === 0;
 
   const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setReferencePhoto(file);
-      setReferencePreview(URL.createObjectURL(file));
-    }
+    if (file) { setReferencePhoto(file); setReferencePreview(URL.createObjectURL(file)); }
   };
 
   const goStep2 = () => {
-    if (!clientForm.name || !clientForm.cpf || !clientForm.whatsapp) {
-      toast.error("Preencha nome, CPF e WhatsApp"); return;
-    }
+    if (!clientForm.name || !clientForm.cpf || !clientForm.whatsapp) { toast.error("Preencha nome, CPF e WhatsApp"); return; }
     if (!validateCPF(clientForm.cpf)) { toast.error("CPF inválido"); return; }
     setStep(2);
   };
@@ -160,47 +197,32 @@ const PublicBooking = () => {
         photoUrl = publicUrl;
       }
 
-      const { data: existingClient } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("business_id", business.id)
-        .eq("cpf", clientForm.cpf.replace(/\D/g, ""))
-        .maybeSingle();
-
+      const { data: existingClient } = await supabase.from("clients").select("id")
+        .eq("business_id", business.id).eq("cpf", clientForm.cpf.replace(/\D/g, "")).maybeSingle();
       let clientId = existingClient?.id;
       if (!clientId) {
         const { data: newClient, error: clientErr } = await supabase.from("clients").insert({
-          business_id: business.id,
-          name: clientForm.name,
-          cpf: clientForm.cpf.replace(/\D/g, ""),
-          whatsapp: clientForm.whatsapp.replace(/\D/g, ""),
-          email: clientForm.email || null,
-          city: clientForm.city || null,
+          business_id: business.id, name: clientForm.name,
+          cpf: clientForm.cpf.replace(/\D/g, ""), whatsapp: clientForm.whatsapp.replace(/\D/g, ""),
+          email: clientForm.email || null, city: clientForm.city || null,
         }).select("id").single();
         if (clientErr) throw clientErr;
         clientId = newClient.id;
       }
 
       const status = business.auto_accept_appointments ? "confirmed" : "pending";
-
       const { error } = await supabase.from("appointments").insert({
-        business_id: business.id,
-        client_id: clientId,
-        professional_id: selectedProfessional || null,
-        service_id: detailsForm.serviceId || null,
-        status,
-        appointment_date: format(selectedDate, "yyyy-MM-dd"),
+        business_id: business.id, client_id: clientId,
+        professional_id: selectedProfessional || null, service_id: detailsForm.serviceId || null,
+        status, appointment_date: format(selectedDate, "yyyy-MM-dd"),
         start_time: selectedTime + ":00",
         body_location: detailsForm.bodyLocation || null,
         size_cm: detailsForm.sizeCm ? parseFloat(detailsForm.sizeCm) : null,
         has_previous_tattoo: detailsForm.hasPrevious === "yes" ? true : detailsForm.hasPrevious === "no" ? false : null,
-        observations: detailsForm.observations || null,
-        reference_photo_url: photoUrl,
-        client_name: clientForm.name,
-        client_cpf: clientForm.cpf.replace(/\D/g, ""),
+        observations: detailsForm.observations || null, reference_photo_url: photoUrl,
+        client_name: clientForm.name, client_cpf: clientForm.cpf.replace(/\D/g, ""),
         client_whatsapp: clientForm.whatsapp.replace(/\D/g, ""),
-        client_email: clientForm.email || null,
-        client_city: clientForm.city || null,
+        client_email: clientForm.email || null, client_city: clientForm.city || null,
       });
       if (error) throw error;
       setDone(true);
@@ -215,14 +237,11 @@ const PublicBooking = () => {
   if (!business) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Negócio não encontrado</div>;
 
   const whatsappNumber = selectedProfessional
-    ? professionals.find(p => p.id === selectedProfessional)?.whatsapp || null
-    : null;
-
+    ? professionals.find(p => p.id === selectedProfessional)?.whatsapp || null : null;
   const whatsappMsg = encodeURIComponent(
     `Olá! Acabei de agendar pelo IA agenda para ${selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: ptBR }) : ""} às ${selectedTime}.${referencePhoto ? " Segue a foto de referência." : ""}`
   );
 
-  // Dynamic accent style
   const accentStyle = { color: `hsl(${accentHsl})` };
   const accentBgStyle = { backgroundColor: `hsl(${accentHsl})` };
   const accentBorderStyle = { borderColor: `hsl(${accentHsl})` };
@@ -251,7 +270,6 @@ const PublicBooking = () => {
 
   return (
     <div className="min-h-screen bg-background relative">
-      {/* Gallery background */}
       {gallery.length > 0 && (
         <div className="fixed inset-0 z-0 overflow-hidden opacity-15">
           <div className="flex animate-scroll-x gap-4 h-full items-center">
@@ -264,7 +282,6 @@ const PublicBooking = () => {
 
       <div className="relative z-10 min-h-screen flex items-center justify-center px-4 py-8">
         <div className="w-full max-w-md">
-          {/* Header */}
           <div className="text-center mb-6">
             {business.avatar_url && (
               <img src={business.avatar_url} alt="" className="w-16 h-16 rounded-full mx-auto mb-3 object-cover border-2" style={{ borderColor: `hsl(${accentHsl} / 0.5)` }} />
@@ -279,7 +296,6 @@ const PublicBooking = () => {
             </div>
           </div>
 
-          {/* Gallery showcase */}
           {gallery.length > 0 && step === 1 && (
             <div className="mb-4 -mx-2">
               <div className="flex gap-2 overflow-x-auto pb-2 px-2 scrollbar-hide">
@@ -372,6 +388,20 @@ const PublicBooking = () => {
                     </div>
                   </>
                 )}
+                {professionals.length > 0 && (
+                  <div>
+                    <Label>Profissional</Label>
+                    <div className="grid grid-cols-2 gap-2 mt-1">
+                      {professionals.map((p) => (
+                        <button key={p.id} type="button" onClick={() => setSelectedProfessional(p.id)}
+                          className="p-2 rounded-lg border text-sm"
+                          style={selectedProfessional === p.id ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => setStep(1)}><ArrowLeft className="w-4 h-4" /></Button>
                   <Button className="flex-1" onClick={goStep3} style={accentBgStyle}>Próximo <ArrowRight className="w-4 h-4 ml-2" /></Button>
@@ -382,41 +412,38 @@ const PublicBooking = () => {
             {step === 3 && (
               <div className="space-y-4">
                 <h2 className="font-semibold">Escolha data e horário</h2>
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={setSelectedDate}
-                  locale={ptBR}
+                <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} locale={ptBR}
                   disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
-                  className="rounded-md border mx-auto"
-                />
+                  className="rounded-md border mx-auto pointer-events-auto" />
                 {selectedDate && (
                   <>
-                    <div>
-                      <Label>Horários disponíveis</Label>
-                      <div className="grid grid-cols-4 gap-2 mt-1">
-                        {availableSlots.map((t) => (
-                          <button key={t} type="button" onClick={() => setSelectedTime(t)}
-                            className="p-2 rounded-lg border text-sm transition-colors"
-                            style={selectedTime === t ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
-                            {t}
-                          </button>
-                        ))}
+                    {noWorkHoursConfigured && (
+                      <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-sm text-amber-600">
+                        <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                        <span>Nenhum horário disponível configurado para este profissional.</span>
                       </div>
-                      {availableSlots.length === 0 && <p className="text-sm text-muted-foreground mt-2">Sem horários disponíveis neste dia.</p>}
-                    </div>
-                    {professionals.length > 0 && (
+                    )}
+                    {!noWorkHoursConfigured && (
                       <div>
-                        <Label>Profissional (opcional)</Label>
-                        <div className="grid grid-cols-2 gap-2 mt-1">
-                          {professionals.map((p) => (
-                            <button key={p.id} type="button" onClick={() => setSelectedProfessional(p.id)}
-                              className="p-2 rounded-lg border text-sm"
-                              style={selectedProfessional === p.id ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
-                              {p.name}
-                            </button>
-                          ))}
-                        </div>
+                        <Label>Horários disponíveis</Label>
+                        {professionals.length > 0 && !selectedProfessional ? (
+                          <p className="text-sm text-muted-foreground mt-1">Selecione um profissional na etapa anterior.</p>
+                        ) : slots.length === 0 ? (
+                          <p className="text-sm text-muted-foreground mt-2">Sem horários disponíveis neste dia.</p>
+                        ) : (
+                          <div className="grid grid-cols-4 gap-2 mt-1">
+                            {slots.map(({ slot, available }) => (
+                              <button key={slot} type="button" onClick={() => available && setSelectedTime(slot)}
+                                disabled={!available}
+                                className={`p-2 rounded-lg border text-sm transition-colors ${
+                                  !available ? "border-destructive/30 bg-destructive/10 text-destructive cursor-not-allowed" : ""
+                                }`}
+                                style={selectedTime === slot ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
+                                {slot}
+                              </button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </>
