@@ -29,6 +29,7 @@ import AdminBusinesses from "./pages/admin/AdminBusinesses";
 import AdminAccess from "./pages/admin/AdminAccess";
 import AdminLogs from "./pages/admin/AdminLogs";
 import AdminIntegrations from "./pages/admin/AdminIntegrations";
+import AdminPlans from "./pages/admin/AdminPlans";
 import PublicBooking from "./pages/PublicBooking";
 import NotFound from "./pages/NotFound";
 
@@ -66,6 +67,7 @@ const App = () => (
                 <Route path="users" element={<AdminUsers />} />
                 <Route path="businesses" element={<AdminBusinesses />} />
                 <Route path="access" element={<AdminAccess />} />
+                <Route path="plans" element={<AdminPlans />} />
                 <Route path="logs" element={<AdminLogs />} />
                 <Route path="integrations" element={<AdminIntegrations />} />
               </Route>

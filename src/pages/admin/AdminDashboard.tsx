@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { Building2, Users, CalendarCheck } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
 
 const AdminDashboard = () => {
   const [counts, setCounts] = useState({ businesses: 0, users: 0, appointments: 0 });
@@ -19,20 +21,28 @@ const AdminDashboard = () => {
   }, []);
 
   const cards = [
-    { label: "Negócios", value: counts.businesses },
-    { label: "Usuários", value: counts.users },
-    { label: "Agendamentos", value: counts.appointments },
+    { label: "Total de Negócios", value: counts.businesses, icon: Building2 },
+    { label: "Total de Usuários", value: counts.users, icon: Users },
+    { label: "Total de Agendamentos", value: counts.appointments, icon: CalendarCheck },
   ];
 
   return (
     <div className="animate-fade-in">
-      <h1 className="text-2xl font-bold mb-6">Admin — Visão Geral</h1>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <h1 className="text-2xl font-bold mb-2">Admin — Visão Geral</h1>
+      <p className="text-muted-foreground mb-6">Métricas do sistema de agenda.</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         {cards.map(c => (
-          <div key={c.label} className="p-5 rounded-xl border border-border bg-card">
-            <div className="text-3xl font-bold">{c.value}</div>
-            <div className="text-sm text-muted-foreground mt-1">{c.label}</div>
-          </div>
+          <Card key={c.label} className="shadow-md hover:shadow-lg transition-shadow">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="p-3 rounded-xl bg-primary/10">
+                <c.icon className="w-6 h-6 text-primary" />
+              </div>
+              <div>
+                <div className="text-3xl font-bold">{c.value}</div>
+                <div className="text-sm text-muted-foreground mt-0.5">{c.label}</div>
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>

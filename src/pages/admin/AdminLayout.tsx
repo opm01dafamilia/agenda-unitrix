@@ -1,11 +1,12 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Shield, Users, Building2, LayoutDashboard, Activity, Plug } from "lucide-react";
+import { Shield, Users, Building2, LayoutDashboard, Activity, Plug, CreditCard } from "lucide-react";
 
 const navItems = [
   { path: "/admin", icon: LayoutDashboard, label: "Visão geral" },
   { path: "/admin/businesses", icon: Building2, label: "Negócios" },
   { path: "/admin/users", icon: Users, label: "Usuários" },
   { path: "/admin/access", icon: Shield, label: "Acessos" },
+  { path: "/admin/plans", icon: CreditCard, label: "Planos" },
   { path: "/admin/logs", icon: Activity, label: "Logs" },
   { path: "/admin/integrations", icon: Plug, label: "Integrações" },
 ];
