@@ -47,19 +47,103 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Log to admin_logs
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
   const eventType = payload?.evento || payload?.event || "unknown";
+  const customerEmail = payload?.Customer?.email || payload?.customer?.email || null;
+  const subscriptionId = payload?.Subscription?.id || payload?.subscription?.id || null;
 
+  // Log event to admin_logs
   await supabase.from("admin_logs").insert({
     event_type: eventType,
     source: "kiwify",
     payload: payload,
   });
+
+  // Process subscription events if we have a customer email
+  if (customerEmail) {
+    // Find user by email in profiles
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("email", customerEmail)
+      .maybeSingle();
+
+    if (profile) {
+      const userId = profile.id;
+      const normalizedEvent = eventType.toLowerCase().replace(/\s+/g, "_");
+
+      if (
+        normalizedEvent.includes("compra_aprovada") ||
+        normalizedEvent.includes("order_paid") ||
+        normalizedEvent.includes("purchase_approved")
+      ) {
+        // Activate access
+        await supabase
+          .from("access_control")
+          .upsert(
+            {
+              user_id: userId,
+              status: "active",
+              source: "kiwify",
+              external_subscription_id: subscriptionId,
+              external_customer_id: payload?.Customer?.id || payload?.customer?.id || null,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id" }
+          );
+
+      } else if (
+        normalizedEvent.includes("assinatura_renovada") ||
+        normalizedEvent.includes("subscription_renewed")
+      ) {
+        // Renew - ensure active
+        await supabase
+          .from("access_control")
+          .update({
+            status: "active",
+            source: "kiwify",
+            external_subscription_id: subscriptionId,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId);
+
+      } else if (
+        normalizedEvent.includes("assinatura_cancelada") ||
+        normalizedEvent.includes("subscription_cancelled") ||
+        normalizedEvent.includes("reembolso") ||
+        normalizedEvent.includes("refund") ||
+        normalizedEvent.includes("chargeback")
+      ) {
+        // Block access
+        await supabase
+          .from("access_control")
+          .update({
+            status: "cancelled",
+            source: "kiwify",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId);
+
+      } else if (
+        normalizedEvent.includes("assinatura_atrasada") ||
+        normalizedEvent.includes("subscription_overdue")
+      ) {
+        // Mark as overdue
+        await supabase
+          .from("access_control")
+          .update({
+            status: "overdue",
+            source: "kiwify",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId);
+      }
+    }
+  }
 
   return new Response(JSON.stringify({ success: true }), {
     status: 200,
