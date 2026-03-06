@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Plug, CheckCircle, XCircle, TestTube, Eye } from "lucide-react";
+import { Plug, CheckCircle, XCircle, TestTube, Eye, Copy, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -8,6 +8,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+
+const WEBHOOK_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/kiwify-webhook`;
+const WEBHOOK_TOKEN = "5j2th3200gu";
 
 const AdminIntegrations = () => {
   const [connected] = useState(false); // mock
@@ -33,6 +36,48 @@ const AdminIntegrations = () => {
       <h1 className="text-2xl font-bold mb-6">Integrações</h1>
 
       <div className="space-y-6">
+        {/* Webhook URL & Token */}
+        <div className="p-6 rounded-xl border border-border bg-card">
+          <div className="flex items-center gap-2 mb-4">
+            <Link2 className="w-5 h-5 text-muted-foreground" />
+            <h3 className="font-semibold text-lg">Webhook Kiwify</h3>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">URL do Webhook</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={WEBHOOK_URL} className="flex-1 font-mono text-xs" />
+                <Button variant="outline" size="sm" onClick={() => {
+                  navigator.clipboard.writeText(WEBHOOK_URL);
+                  toast.success("Webhook copiado com sucesso.");
+                }}>
+                  <Copy className="w-4 h-4 mr-1" /> Copiar URL
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Cole esta URL na configuração de webhook da Kiwify para o produto Agenda IA 01.
+              </p>
+            </div>
+
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Token do Webhook</Label>
+              <div className="flex gap-2">
+                <Input readOnly value={WEBHOOK_TOKEN} className="flex-1 font-mono text-xs" />
+                <Button variant="outline" size="sm" onClick={() => {
+                  navigator.clipboard.writeText(WEBHOOK_TOKEN);
+                  toast.success("Token copiado com sucesso.");
+                }}>
+                  <Copy className="w-4 h-4 mr-1" /> Copiar
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Confirme que este token é o mesmo configurado na Kiwify.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* Status Card */}
         <div className="p-6 rounded-xl border border-border bg-card">
           <div className="flex items-center justify-between mb-4">
