@@ -46,6 +46,11 @@ export const useAuth = () => {
 };
 
 const ADMIN_EMAILS = ["casuplemento@gmail.com", "lp070087@gmail.com"];
+const AUTH_TIMEOUT_MS = 10000;
+
+const log = (...args: any[]) => {
+  if (import.meta.env.DEV) console.log("[Auth]", ...args);
+};
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -56,6 +61,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const initializedRef = useRef(false);
 
   const checkAdmin = async (userId: string, email: string) => {
+    log("checkAdmin", email);
     if (ADMIN_EMAILS.includes(email)) {
       setIsAdmin(true);
       return;
@@ -70,11 +76,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const fetchBusiness = async (userId: string) => {
+    log("fetchBusiness", userId);
     const { data } = await supabase
       .from("businesses")
       .select("*")
       .eq("owner_id", userId)
       .maybeSingle();
+    log("business result", data ? "found" : "none");
     setBusiness(data as Business | null);
   };
 
@@ -83,6 +91,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const handleSession = async (newSession: Session | null) => {
+    log("handleSession", newSession ? "authenticated" : "no session");
     setSession(newSession);
     setUser(newSession?.user ?? null);
     if (newSession?.user) {
@@ -101,20 +110,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     if (initializedRef.current) return;
     initializedRef.current = true;
 
+    // Timeout fallback to prevent infinite loading
+    const timeout = setTimeout(() => {
+      log("timeout reached, forcing isLoading=false");
+      setIsLoading(false);
+    }, AUTH_TIMEOUT_MS);
+
     // Set up listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, newSession) => {
-        // Only handle changes after initial load
+        log("onAuthStateChange", _event);
         await handleSession(newSession);
+        clearTimeout(timeout);
       }
     );
 
     // Then get current session
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      handleSession(currentSession);
+      log("getSession result", currentSession ? "has session" : "no session");
+      handleSession(currentSession).then(() => clearTimeout(timeout));
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const signOut = async () => {

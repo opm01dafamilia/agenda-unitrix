@@ -1,6 +1,10 @@
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Crown, Zap } from "lucide-react";
+import { Crown, Zap, ExternalLink } from "lucide-react";
+
+const KIWIFY_MONTHLY = "https://pay.kiwify.com.br/Hhoa7EB";
+const KIWIFY_ANNUAL = "https://pay.kiwify.com.br/6HxBH3e";
 
 const AdminPlans = () => {
   return (
@@ -35,6 +39,10 @@ const AdminPlans = () => {
             <div className="pt-3 border-t border-border">
               <p className="text-sm text-muted-foreground">Renovação automática mensal.</p>
             </div>
+            <Button className="w-full" onClick={() => window.open(KIWIFY_MONTHLY, "_blank")}>
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Assinar Mensal
+            </Button>
           </CardContent>
         </Card>
 
@@ -65,6 +73,10 @@ const AdminPlans = () => {
               <p className="text-sm text-muted-foreground">Renovação anual: <span className="font-medium text-foreground">R$ 247,00</span></p>
               <p className="text-xs text-green-500 font-medium">Economize mais de 50% comparado ao mensal.</p>
             </div>
+            <Button className="w-full" onClick={() => window.open(KIWIFY_ANNUAL, "_blank")}>
+              <ExternalLink className="w-4 h-4 mr-2" />
+              Assinar Anual
+            </Button>
           </CardContent>
         </Card>
       </div>
