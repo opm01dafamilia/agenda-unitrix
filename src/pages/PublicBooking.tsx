@@ -57,28 +57,39 @@ const PublicBooking = () => {
 
   useEffect(() => {
     const fetchBusiness = async () => {
-      const { data: bizData } = await supabase
-        .from("businesses_public" as any).select("*").eq("slug", slug).maybeSingle();
-      if (bizData) {
-        const { data: fullBiz } = await supabase.from("businesses")
-          .select("showcase_color").eq("id", (bizData as any).id).maybeSingle();
-        const merged = Object.assign({}, bizData, { showcase_color: (fullBiz as any)?.showcase_color || "gold" });
-        setBusiness(merged);
-        const bizId = (bizData as any).id;
-        const [galRes, prosRes, svcRes] = await Promise.all([
-          supabase.from("gallery_images").select("*").eq("business_id", bizId).order("sort_order"),
-          supabase.from("professionals").select("*").eq("business_id", bizId).eq("active", true),
-          (bizData as any).industry !== "tattoo"
-            ? supabase.from("services").select("*").eq("business_id", bizId).eq("active", true)
-            : Promise.resolve({ data: [] }),
-        ]);
-        setGallery(galRes.data || []);
-        setProfessionals(prosRes.data || []);
-        setServices(svcRes.data || []);
+      try {
+        if (import.meta.env.DEV) console.log("[PublicBooking] fetching slug:", slug);
+        const { data: bizData, error: bizErr } = await supabase
+          .from("businesses_public" as any).select("*").eq("slug", slug).maybeSingle();
+        if (bizErr) { if (import.meta.env.DEV) console.error("[PublicBooking] biz error:", bizErr); }
+        if (bizData) {
+          const { data: fullBiz } = await supabase.from("businesses")
+            .select("showcase_color").eq("id", (bizData as any).id).maybeSingle();
+          const merged = Object.assign({}, bizData, { showcase_color: (fullBiz as any)?.showcase_color || "gold" });
+          setBusiness(merged);
+          const bizId = (bizData as any).id;
+          if (import.meta.env.DEV) console.log("[PublicBooking] loading services/pros for", bizId);
+          const [galRes, prosRes, svcRes] = await Promise.all([
+            supabase.from("gallery_images").select("*").eq("business_id", bizId).order("sort_order"),
+            supabase.from("professionals").select("*").eq("business_id", bizId).eq("active", true),
+            (bizData as any).industry !== "tattoo"
+              ? supabase.from("services").select("*").eq("business_id", bizId).eq("active", true)
+              : Promise.resolve({ data: [] }),
+          ]);
+          setGallery(galRes.data || []);
+          setProfessionals(prosRes.data || []);
+          setServices(svcRes.data || []);
+          if (import.meta.env.DEV) console.log("[PublicBooking] loaded:", { gallery: galRes.data?.length, pros: prosRes.data?.length, services: svcRes.data?.length });
+        } else {
+          if (import.meta.env.DEV) console.log("[PublicBooking] business not found for slug:", slug);
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) console.error("[PublicBooking] fetch error:", err);
       }
       setLoading(false);
     };
     if (slug) fetchBusiness();
+    else setLoading(false);
   }, [slug]);
 
   useEffect(() => {
