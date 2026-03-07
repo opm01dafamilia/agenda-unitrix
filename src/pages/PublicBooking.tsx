@@ -57,28 +57,39 @@ const PublicBooking = () => {
 
   useEffect(() => {
     const fetchBusiness = async () => {
-      const { data: bizData } = await supabase
-        .from("businesses_public" as any).select("*").eq("slug", slug).maybeSingle();
-      if (bizData) {
-        const { data: fullBiz } = await supabase.from("businesses")
-          .select("showcase_color").eq("id", (bizData as any).id).maybeSingle();
-        const merged = Object.assign({}, bizData, { showcase_color: (fullBiz as any)?.showcase_color || "gold" });
-        setBusiness(merged);
-        const bizId = (bizData as any).id;
-        const [galRes, prosRes, svcRes] = await Promise.all([
-          supabase.from("gallery_images").select("*").eq("business_id", bizId).order("sort_order"),
-          supabase.from("professionals").select("*").eq("business_id", bizId).eq("active", true),
-          (bizData as any).industry !== "tattoo"
-            ? supabase.from("services").select("*").eq("business_id", bizId).eq("active", true)
-            : Promise.resolve({ data: [] }),
-        ]);
-        setGallery(galRes.data || []);
-        setProfessionals(prosRes.data || []);
-        setServices(svcRes.data || []);
+      try {
+        if (import.meta.env.DEV) console.log("[PublicBooking] fetching slug:", slug);
+        const { data: bizData, error: bizErr } = await supabase
+          .from("businesses_public" as any).select("*").eq("slug", slug).maybeSingle();
+        if (bizErr) { if (import.meta.env.DEV) console.error("[PublicBooking] biz error:", bizErr); }
+        if (bizData) {
+          const { data: fullBiz } = await supabase.from("businesses")
+            .select("showcase_color").eq("id", (bizData as any).id).maybeSingle();
+          const merged = Object.assign({}, bizData, { showcase_color: (fullBiz as any)?.showcase_color || "gold" });
+          setBusiness(merged);
+          const bizId = (bizData as any).id;
+          if (import.meta.env.DEV) console.log("[PublicBooking] loading services/pros for", bizId);
+          const [galRes, prosRes, svcRes] = await Promise.all([
+            supabase.from("gallery_images").select("*").eq("business_id", bizId).order("sort_order"),
+            supabase.from("professionals").select("*").eq("business_id", bizId).eq("active", true),
+            (bizData as any).industry !== "tattoo"
+              ? supabase.from("services").select("*").eq("business_id", bizId).eq("active", true)
+              : Promise.resolve({ data: [] }),
+          ]);
+          setGallery(galRes.data || []);
+          setProfessionals(prosRes.data || []);
+          setServices(svcRes.data || []);
+          if (import.meta.env.DEV) console.log("[PublicBooking] loaded:", { gallery: galRes.data?.length, pros: prosRes.data?.length, services: svcRes.data?.length });
+        } else {
+          if (import.meta.env.DEV) console.log("[PublicBooking] business not found for slug:", slug);
+        }
+      } catch (err) {
+        if (import.meta.env.DEV) console.error("[PublicBooking] fetch error:", err);
       }
       setLoading(false);
     };
     if (slug) fetchBusiness();
+    else setLoading(false);
   }, [slug]);
 
   useEffect(() => {
@@ -207,8 +218,24 @@ const PublicBooking = () => {
     }
   };
 
-  if (loading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" /></div>;
-  if (!business) return <div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Negócio não encontrado</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-3" />
+        <p className="text-sm text-muted-foreground">Carregando agendamento...</p>
+      </div>
+    </div>
+  );
+  if (!business) return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="text-center max-w-sm">
+        <AlertTriangle className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+        <h2 className="text-lg font-semibold mb-2">Link de agendamento indisponível</h2>
+        <p className="text-muted-foreground text-sm mb-4">Não foi possível carregar esta página agora.</p>
+        <Button variant="outline" onClick={() => window.location.reload()}>Tentar novamente</Button>
+      </div>
+    </div>
+  );
 
   const selectedPro = professionals.find(p => p.id === selectedProfessional);
   const whatsappNumber = selectedPro?.whatsapp || null;
