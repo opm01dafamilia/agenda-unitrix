@@ -24,12 +24,13 @@ const DashboardLayout = () => {
   useEffect(() => {
     if (!user) return;
     supabase
-      .from("access_control" as any)
+      .from("access_control")
       .select("status")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (data && (data as any).status !== "active") {
+        const status = (data as any)?.status;
+        if (status && status !== "active" && status !== "trial") {
           setAccessBlocked(true);
         }
         setAccessLoading(false);
