@@ -53,10 +53,14 @@ const DashboardLayout = () => {
   if (accessBlocked && !isAdmin) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-background">
-        <div className="text-center animate-fade-in">
+        <div className="text-center animate-fade-in max-w-sm">
+          <CreditCard className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h1 className="text-2xl font-bold mb-2">Acesso indisponível</h1>
-          <p className="text-muted-foreground mb-4">Seu acesso está temporariamente indisponível. Entre em contato com o suporte.</p>
-          <Button variant="outline" onClick={signOut}>Sair</Button>
+          <p className="text-muted-foreground mb-4">Seu acesso expirou ou está inativo. Assine um plano para continuar usando o sistema.</p>
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => window.location.href = "/dashboard/plans"}>Ver planos</Button>
+            <Button variant="outline" onClick={signOut}>Sair</Button>
+          </div>
         </div>
       </div>
     );
