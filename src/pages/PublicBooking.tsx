@@ -258,9 +258,14 @@ const PublicBooking = () => {
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="text-center animate-fade-in max-w-sm">
           <CheckCircle className="w-16 h-16 mx-auto mb-4" style={accentStyle} />
-          <h1 className="text-2xl font-bold mb-2">Agendamento realizado!</h1>
-          <p className="text-muted-foreground mb-4">
-            {business.auto_accept_appointments ? "Seu horário está confirmado." : "Aguarde a confirmação do profissional."}
+          <h1 className="text-2xl font-bold mb-2">Agendamento realizado! 🎉</h1>
+          <p className="text-muted-foreground mb-1">
+            {selectedDate && <><strong>{format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</strong> às <strong>{selectedTime}</strong></>}
+          </p>
+          <p className="text-muted-foreground mb-4 text-sm">
+            {business.auto_accept_appointments
+              ? "Seu horário está confirmado. Até lá!"
+              : "Aguarde a confirmação do profissional. Você será avisado."}
           </p>
           {/* Address summary */}
           {selectedPro && (
