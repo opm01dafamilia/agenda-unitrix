@@ -321,7 +321,7 @@ export type Database = {
         Row: {
           business_id: string
           city: string | null
-          cpf: string
+          cpf: string | null
           created_at: string
           email: string | null
           id: string
@@ -334,7 +334,7 @@ export type Database = {
         Insert: {
           business_id: string
           city?: string | null
-          cpf: string
+          cpf?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -347,7 +347,7 @@ export type Database = {
         Update: {
           business_id?: string
           city?: string | null
-          cpf?: string
+          cpf?: string | null
           created_at?: string
           email?: string | null
           id?: string
