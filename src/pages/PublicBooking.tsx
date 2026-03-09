@@ -212,7 +212,10 @@ const PublicBooking = () => {
       if (error) throw error;
       setDone(true);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao agendar");
+      const msg = err.message?.includes("row-level security")
+        ? "Não foi possível salvar o agendamento. Tente novamente."
+        : err.message || "Erro ao agendar. Tente novamente em instantes.";
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
