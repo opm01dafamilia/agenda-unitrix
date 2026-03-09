@@ -433,7 +433,7 @@ const PublicBooking = () => {
                     {noWorkHoursConfigured && (
                       <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-sm text-amber-600">
                         <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                        <span>Nenhum horário disponível configurado para este profissional.</span>
+                        <span>Este profissional ainda não configurou seus horários. Entre em contato diretamente.</span>
                       </div>
                     )}
                     {!noWorkHoursConfigured && (
