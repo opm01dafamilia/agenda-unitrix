@@ -50,7 +50,9 @@ const DashboardLayout = () => {
     );
   }
 
-  if (accessBlocked && !isAdmin) {
+  const isPlansPage = location.pathname === "/dashboard/plans";
+
+  if (accessBlocked && !isAdmin && !isPlansPage) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-background">
         <div className="text-center animate-fade-in max-w-sm">
