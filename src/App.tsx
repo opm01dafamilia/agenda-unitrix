@@ -22,6 +22,7 @@ import ServicesPage from "./pages/dashboard/ServicesPage";
 import PublicLinkPage from "./pages/dashboard/PublicLinkPage";
 import GalleryPage from "./pages/dashboard/GalleryPage";
 import SettingsPage from "./pages/dashboard/SettingsPage";
+import PlansPage from "./pages/dashboard/PlansPage";
 import AdminLayout from "./pages/admin/AdminLayout";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminUsers from "./pages/admin/AdminUsers";
@@ -60,6 +61,7 @@ const App = () => (
                 <Route path="services" element={<ServicesPage />} />
                 <Route path="public-link" element={<PublicLinkPage />} />
                 <Route path="gallery" element={<GalleryPage />} />
+                <Route path="plans" element={<PlansPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
               <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>

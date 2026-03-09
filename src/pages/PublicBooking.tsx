@@ -212,7 +212,10 @@ const PublicBooking = () => {
       if (error) throw error;
       setDone(true);
     } catch (err: any) {
-      toast.error(err.message || "Erro ao agendar");
+      const msg = err.message?.includes("row-level security")
+        ? "Não foi possível salvar o agendamento. Tente novamente."
+        : err.message || "Erro ao agendar. Tente novamente em instantes.";
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -258,9 +261,14 @@ const PublicBooking = () => {
       <div className="min-h-screen bg-background flex items-center justify-center px-4">
         <div className="text-center animate-fade-in max-w-sm">
           <CheckCircle className="w-16 h-16 mx-auto mb-4" style={accentStyle} />
-          <h1 className="text-2xl font-bold mb-2">Agendamento realizado!</h1>
-          <p className="text-muted-foreground mb-4">
-            {business.auto_accept_appointments ? "Seu horário está confirmado." : "Aguarde a confirmação do profissional."}
+          <h1 className="text-2xl font-bold mb-2">Agendamento realizado! 🎉</h1>
+          <p className="text-muted-foreground mb-1">
+            {selectedDate && <><strong>{format(selectedDate, "dd 'de' MMMM", { locale: ptBR })}</strong> às <strong>{selectedTime}</strong></>}
+          </p>
+          <p className="text-muted-foreground mb-4 text-sm">
+            {business.auto_accept_appointments
+              ? "Seu horário está confirmado. Até lá!"
+              : "Aguarde a confirmação do profissional. Você será avisado."}
           </p>
           {/* Address summary */}
           {selectedPro && (
@@ -425,7 +433,7 @@ const PublicBooking = () => {
                     {noWorkHoursConfigured && (
                       <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center gap-2 text-sm text-amber-600">
                         <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                        <span>Nenhum horário disponível configurado para este profissional.</span>
+                        <span>Este profissional ainda não configurou seus horários. Entre em contato diretamente.</span>
                       </div>
                     )}
                     {!noWorkHoursConfigured && (
@@ -434,7 +442,7 @@ const PublicBooking = () => {
                         {professionals.length > 0 && !selectedProfessional ? (
                           <p className="text-sm text-muted-foreground mt-1">Selecione um profissional na etapa anterior.</p>
                         ) : slots.length === 0 ? (
-                          <p className="text-sm text-muted-foreground mt-2">Sem horários disponíveis neste dia.</p>
+                          <p className="text-sm text-muted-foreground mt-2">Nenhum horário disponível para esta data. Tente outro dia.</p>
                         ) : (
                           <div className="grid grid-cols-4 gap-2 mt-1">
                             {slots.map(({ slot, available }) => (

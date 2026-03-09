@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, Calendar, CalendarCheck, Users, UserPlus, Settings,
-  LogOut, Menu, Shield, Scissors, Link2, Image, Sun, Moon
+  LogOut, Menu, Shield, Scissors, Link2, Image, Sun, Moon, CreditCard
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
@@ -24,12 +24,13 @@ const DashboardLayout = () => {
   useEffect(() => {
     if (!user) return;
     supabase
-      .from("access_control" as any)
+      .from("access_control")
       .select("status")
       .eq("user_id", user.id)
       .maybeSingle()
       .then(({ data }) => {
-        if (data && (data as any).status !== "active") {
+        const status = (data as any)?.status;
+        if (status && status !== "active" && status !== "trial") {
           setAccessBlocked(true);
         }
         setAccessLoading(false);
@@ -49,13 +50,19 @@ const DashboardLayout = () => {
     );
   }
 
-  if (accessBlocked && !isAdmin) {
+  const isPlansPage = location.pathname === "/dashboard/plans";
+
+  if (accessBlocked && !isAdmin && !isPlansPage) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4 bg-background">
-        <div className="text-center animate-fade-in">
+        <div className="text-center animate-fade-in max-w-sm">
+          <CreditCard className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
           <h1 className="text-2xl font-bold mb-2">Acesso indisponível</h1>
-          <p className="text-muted-foreground mb-4">Seu acesso está temporariamente indisponível. Entre em contato com o suporte.</p>
-          <Button variant="outline" onClick={signOut}>Sair</Button>
+          <p className="text-muted-foreground mb-4">Seu acesso expirou ou está inativo. Assine um plano para continuar usando o sistema.</p>
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => window.location.href = "/dashboard/plans"}>Ver planos</Button>
+            <Button variant="outline" onClick={signOut}>Sair</Button>
+          </div>
         </div>
       </div>
     );
@@ -82,6 +89,7 @@ const DashboardLayout = () => {
     { path: "/dashboard/professionals", icon: UserPlus, label: "Profissionais" },
     { path: "/dashboard/public-link", icon: Link2, label: "Link Público" },
     { path: "/dashboard/gallery", icon: Image, label: labels.gallery },
+    { path: "/dashboard/plans", icon: CreditCard, label: "Planos" },
     { path: "/dashboard/settings", icon: Settings, label: "Configurações" },
   ];
 

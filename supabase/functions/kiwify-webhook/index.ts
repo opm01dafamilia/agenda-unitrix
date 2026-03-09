@@ -55,6 +55,13 @@ Deno.serve(async (req) => {
   const eventType = payload?.evento || payload?.event || "unknown";
   const customerEmail = payload?.Customer?.email || payload?.customer?.email || null;
   const subscriptionId = payload?.Subscription?.id || payload?.subscription?.id || null;
+  const productName = payload?.Product?.name || payload?.product?.name || "";
+
+  // Determine plan from product name
+  let plan = "Mensal";
+  if (productName.toLowerCase().includes("anual") || productName.toLowerCase().includes("annual")) {
+    plan = "Anual";
+  }
 
   // Log event to admin_logs
   await supabase.from("admin_logs").insert({
@@ -62,6 +69,10 @@ Deno.serve(async (req) => {
     source: "kiwify",
     payload: payload,
   });
+
+  // Log to webhook_logs for detailed tracking
+  let processingStatus = "success";
+  let errorMessage: string | null = null;
 
   // Process subscription events if we have a customer email
   if (customerEmail) {
@@ -82,7 +93,7 @@ Deno.serve(async (req) => {
         normalizedEvent.includes("purchase_approved")
       ) {
         // Activate access
-        await supabase
+        const { error } = await supabase
           .from("access_control")
           .upsert(
             {
@@ -95,13 +106,14 @@ Deno.serve(async (req) => {
             },
             { onConflict: "user_id" }
           );
+        if (error) { processingStatus = "error"; errorMessage = error.message; }
 
       } else if (
         normalizedEvent.includes("assinatura_renovada") ||
         normalizedEvent.includes("subscription_renewed")
       ) {
         // Renew - ensure active
-        await supabase
+        const { error } = await supabase
           .from("access_control")
           .update({
             status: "active",
@@ -110,6 +122,7 @@ Deno.serve(async (req) => {
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", userId);
+        if (error) { processingStatus = "error"; errorMessage = error.message; }
 
       } else if (
         normalizedEvent.includes("assinatura_cancelada") ||
@@ -119,7 +132,7 @@ Deno.serve(async (req) => {
         normalizedEvent.includes("chargeback")
       ) {
         // Block access
-        await supabase
+        const { error } = await supabase
           .from("access_control")
           .update({
             status: "cancelled",
@@ -127,13 +140,14 @@ Deno.serve(async (req) => {
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", userId);
+        if (error) { processingStatus = "error"; errorMessage = error.message; }
 
       } else if (
         normalizedEvent.includes("assinatura_atrasada") ||
         normalizedEvent.includes("subscription_overdue")
       ) {
         // Mark as overdue
-        await supabase
+        const { error } = await supabase
           .from("access_control")
           .update({
             status: "overdue",
@@ -141,9 +155,26 @@ Deno.serve(async (req) => {
             updated_at: new Date().toISOString(),
           })
           .eq("user_id", userId);
+        if (error) { processingStatus = "error"; errorMessage = error.message; }
       }
+    } else {
+      processingStatus = "error";
+      errorMessage = `Usuário não encontrado: ${customerEmail}`;
     }
+  } else {
+    processingStatus = "error";
+    errorMessage = "Email do cliente não encontrado no payload";
   }
+
+  // Log to webhook_logs
+  await supabase.from("webhook_logs").insert({
+    event_type: eventType,
+    email: customerEmail,
+    raw_payload: payload,
+    status_processing: processingStatus,
+    plan_applied: plan,
+    error_message: errorMessage,
+  });
 
   return new Response(JSON.stringify({ success: true }), {
     status: 200,

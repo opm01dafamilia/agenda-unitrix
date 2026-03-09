@@ -162,7 +162,7 @@ const AgendaPage = () => {
       update.completed_by = user?.id;
     }
     await supabase.from("appointments").update(update).eq("id", id);
-    toast.success(`Agendamento ${statusLabels[status]?.toLowerCase()}`);
+    toast.success(`Agendamento ${statusLabels[status]?.toLowerCase() || status}!`);
     fetchAppointments();
   };
 
@@ -314,7 +314,7 @@ const AgendaPage = () => {
                   {professionals.length > 0 && !selectedProfessional ? (
                     <p className="text-sm text-muted-foreground mt-1">Selecione um profissional para ver horários.</p>
                   ) : slots.length === 0 ? (
-                    <p className="text-sm text-muted-foreground mt-1">Sem horários disponíveis neste dia.</p>
+                    <p className="text-sm text-muted-foreground mt-1">Nenhum horário disponível para esta data.</p>
                   ) : (
                     <div className="grid grid-cols-4 gap-2 mt-1">
                       {slots.map(({ slot, available }) => (
