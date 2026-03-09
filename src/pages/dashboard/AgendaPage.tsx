@@ -162,7 +162,7 @@ const AgendaPage = () => {
       update.completed_by = user?.id;
     }
     await supabase.from("appointments").update(update).eq("id", id);
-    toast.success(`Agendamento ${statusLabels[status]?.toLowerCase()}`);
+    toast.success(`Agendamento ${statusLabels[status]?.toLowerCase() || status}!`);
     fetchAppointments();
   };
 
