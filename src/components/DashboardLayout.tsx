@@ -87,6 +87,7 @@ const DashboardLayout = () => {
     { path: "/dashboard/professionals", icon: UserPlus, label: "Profissionais" },
     { path: "/dashboard/public-link", icon: Link2, label: "Link Público" },
     { path: "/dashboard/gallery", icon: Image, label: labels.gallery },
+    { path: "/dashboard/plans", icon: CreditCard, label: "Planos" },
     { path: "/dashboard/settings", icon: Settings, label: "Configurações" },
   ];
 

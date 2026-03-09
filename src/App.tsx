@@ -61,6 +61,7 @@ const App = () => (
                 <Route path="services" element={<ServicesPage />} />
                 <Route path="public-link" element={<PublicLinkPage />} />
                 <Route path="gallery" element={<GalleryPage />} />
+                <Route path="plans" element={<PlansPage />} />
                 <Route path="settings" element={<SettingsPage />} />
               </Route>
               <Route path="/admin" element={<AdminRoute><AdminLayout /></AdminRoute>}>
