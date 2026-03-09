@@ -206,7 +206,6 @@ const PublicBooking = () => {
         has_previous_tattoo: detailsForm.hasPrevious === "yes" ? true : detailsForm.hasPrevious === "no" ? false : null,
         observations: detailsForm.observations || null, reference_photo_url: photoUrl,
         client_name: clientForm.name,
-        client_cpf: whatsappClean,
         client_whatsapp: whatsappClean,
         client_email: clientForm.email || null, client_city: clientForm.city || null,
       });
