@@ -3,8 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Crown, Zap, ExternalLink } from "lucide-react";
 
-const KIWIFY_MONTHLY = "https://pay.kiwify.com.br/Hhoa7EB";
-const KIWIFY_ANNUAL = "https://pay.kiwify.com.br/6HxBH3e";
+const KIWIFY_MONTHLY = "https://pay.kiwify.com.br/inANOs8";
+const KIWIFY_ANNUAL = "https://pay.kiwify.com.br/QEJsYBO";
 
 const AdminPlans = () => {
   return (
