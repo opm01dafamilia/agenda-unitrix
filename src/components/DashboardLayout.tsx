@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
 import {
   LayoutDashboard, Calendar, CalendarCheck, Users, UserPlus, Settings,
-  LogOut, Menu, Shield, Scissors, Link2, Image, Sun, Moon
+  LogOut, Menu, Shield, Scissors, Link2, Image, Sun, Moon, CreditCard
 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
