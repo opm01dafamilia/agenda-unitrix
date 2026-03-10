@@ -7,6 +7,10 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
+const log = (...args: any[]) => {
+  if (import.meta.env.DEV) console.log("[Login]", ...args);
+};
+
 const Login = () => {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
@@ -17,25 +21,24 @@ const Login = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (submittingRef.current) return;
+    if (submittingRef.current || loading) return;
     submittingRef.current = true;
     setLoading(true);
-    try {
-      // Check for existing session first
-      const { data: { session: existing } } = await supabase.auth.getSession();
-      if (existing) {
-        navigate("/dashboard");
-        return;
-      }
+    log("login attempt", email);
 
+    try {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+
       if (error) {
+        log("login error", error.message, error.status);
         if (error.message === "Invalid login credentials") {
           toast.error("Email ou senha incorretos.");
         } else if (error.message === "Email not confirmed") {
           toast.error("Email não confirmado. Verifique sua caixa de entrada.");
         } else if (error.message?.includes("rate limit")) {
           toast.error("Muitas tentativas. Aguarde um momento.");
+        } else if (error.status === 0 || error.message?.includes("fetch") || error.message?.includes("network")) {
+          toast.error("Erro de conexão. Verifique sua internet e tente novamente.");
         } else if (error.message?.includes("lock") || error.message?.includes("timed out")) {
           toast.error("Não foi possível concluir seu login agora. Tente novamente em alguns segundos.");
         } else {
@@ -43,6 +46,8 @@ const Login = () => {
         }
         return;
       }
+
+      log("login success", data.user?.id);
 
       // Check if business is_active
       const { data: biz } = await supabase
@@ -52,14 +57,21 @@ const Login = () => {
         .maybeSingle();
 
       if (biz && biz.is_active === false) {
+        log("business blocked");
         await supabase.auth.signOut();
         toast.error("Sua conta está bloqueada. Entre em contato com o suporte.");
         return;
       }
 
+      log("navigating to dashboard");
       navigate("/dashboard");
     } catch (err: any) {
-      toast.error("Não foi possível concluir seu login agora. Tente novamente em alguns segundos.");
+      log("login catch", err);
+      if (err?.message?.includes("fetch") || err?.message?.includes("Failed")) {
+        toast.error("Erro de conexão. Verifique sua internet e tente novamente.");
+      } else {
+        toast.error("Não foi possível concluir seu login agora. Tente novamente.");
+      }
     } finally {
       setLoading(false);
       submittingRef.current = false;
@@ -77,12 +89,12 @@ const Login = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required />
+            <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="seu@email.com" required autoComplete="email" />
           </div>
           <div>
             <Label htmlFor="password">Senha</Label>
             <div className="relative">
-              <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required />
+              <Input id="password" type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required autoComplete="current-password" />
               <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors">
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
