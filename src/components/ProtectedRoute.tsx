@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 
 const log = (...args: any[]) => {
-  if (import.meta.env.DEV) console.log("[ProtectedRoute]", ...args);
+  if (import.meta.env.DEV) console.log("[ProtectedRoute]", new Date().toISOString().slice(11, 23), ...args);
 };
 
 const LoadingFallback = () => {
@@ -37,23 +37,36 @@ const LoadingFallback = () => {
 };
 
 export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
-  const { user, business, isLoading } = useAuth();
+  const { user, business, isBlocked, isLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) return <LoadingFallback />;
+  if (isLoading) {
+    log("loading...");
+    return <LoadingFallback />;
+  }
 
   if (!user) {
-    log("no user, redirecting to /login");
+    log("no user → /login");
     return <Navigate to="/login" replace />;
   }
 
+  // User is blocked (is_active === false)
+  if (isBlocked) {
+    log("business blocked → /dashboard/plans");
+    // Allow access to plans page so they can reactivate
+    if (location.pathname === "/dashboard/plans") {
+      return <>{children}</>;
+    }
+    return <Navigate to="/dashboard/plans" replace />;
+  }
+
   if (business && location.pathname === "/onboarding") {
-    log("has business, redirecting from onboarding to /dashboard");
+    log("has business → /dashboard");
     return <Navigate to="/dashboard" replace />;
   }
 
   if (!business && location.pathname !== "/onboarding") {
-    log("no business, redirecting to /onboarding");
+    log("no business → /onboarding");
     return <Navigate to="/onboarding" replace />;
   }
 
@@ -66,7 +79,7 @@ export const AdminRoute = ({ children }: { children: React.ReactNode }) => {
   if (isLoading) return <LoadingFallback />;
 
   if (!user || !isAdmin) {
-    log("not admin, redirecting to /dashboard");
+    log("not admin → /dashboard");
     return <Navigate to="/dashboard" replace />;
   }
 

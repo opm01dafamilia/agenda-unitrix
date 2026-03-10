@@ -8,7 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
 const log = (...args: any[]) => {
-  if (import.meta.env.DEV) console.log("[Login]", ...args);
+  if (import.meta.env.DEV) console.log("[Login]", new Date().toISOString().slice(11, 23), ...args);
 };
 
 const Login = () => {
@@ -27,7 +27,7 @@ const Login = () => {
     log("login attempt", email);
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
 
       if (error) {
         log("login error", error.message, error.status);
@@ -39,31 +39,15 @@ const Login = () => {
           toast.error("Muitas tentativas. Aguarde um momento.");
         } else if (error.status === 0 || error.message?.includes("fetch") || error.message?.includes("network")) {
           toast.error("Erro de conexão. Verifique sua internet e tente novamente.");
-        } else if (error.message?.includes("lock") || error.message?.includes("timed out")) {
-          toast.error("Não foi possível concluir seu login agora. Tente novamente em alguns segundos.");
         } else {
           toast.error(error.message || "Erro ao fazer login.");
         }
         return;
       }
 
-      log("login success", data.user?.id);
-
-      // Check if business is_active
-      const { data: biz } = await supabase
-        .from("businesses")
-        .select("is_active")
-        .eq("owner_id", data.user.id)
-        .maybeSingle();
-
-      if (biz && biz.is_active === false) {
-        log("business blocked");
-        await supabase.auth.signOut();
-        toast.error("Sua conta está bloqueada. Entre em contato com o suporte.");
-        return;
-      }
-
-      log("navigating to dashboard");
+      log("login success, navigating to dashboard");
+      // Navigate immediately — AuthContext handles session, business loading, and is_active check
+      // ProtectedRoute will show loading while AuthContext finishes, then redirect appropriately
       navigate("/dashboard");
     } catch (err: any) {
       log("login catch", err);
