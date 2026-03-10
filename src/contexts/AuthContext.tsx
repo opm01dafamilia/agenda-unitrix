@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { User, Session } from "@supabase/supabase-js";
 
@@ -48,10 +48,10 @@ export const useAuth = () => {
 };
 
 const ADMIN_EMAILS = ["casuplemento@gmail.com", "lp070087@gmail.com"];
-const AUTH_TIMEOUT_MS = 8000;
+const AUTH_TIMEOUT_MS = 10000;
 
 const log = (...args: any[]) => {
-  if (import.meta.env.DEV) console.log("[Auth]", ...args);
+  if (import.meta.env.DEV) console.log("[Auth]", new Date().toISOString().slice(11, 23), ...args);
 };
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -61,15 +61,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
-  const initializedRef = useRef(false);
-  const handlingRef = useRef(false);
+  const mountedRef = useRef(true);
+  const initCountRef = useRef(0);
 
-  const checkAdmin = async (userId: string, email: string) => {
+  const checkAdmin = useCallback(async (userId: string, email: string): Promise<boolean> => {
     log("checkAdmin", email);
-    if (ADMIN_EMAILS.includes(email)) {
-      setIsAdmin(true);
-      return;
-    }
+    if (ADMIN_EMAILS.includes(email)) return true;
     try {
       const { data } = await supabase
         .from("user_roles")
@@ -77,14 +74,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq("user_id", userId)
         .eq("role", "adm")
         .maybeSingle();
-      setIsAdmin(!!data);
+      return !!data;
     } catch (err) {
       log("checkAdmin error", err);
-      setIsAdmin(false);
+      return false;
     }
-  };
+  }, []);
 
-  const fetchBusiness = async (userId: string) => {
+  const fetchBusiness = useCallback(async (userId: string): Promise<Business | null> => {
     log("fetchBusiness", userId);
     try {
       const { data, error } = await supabase
@@ -94,107 +91,201 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .maybeSingle();
       if (error) {
         log("fetchBusiness error", error);
-        setBusiness(null);
-        return;
+        return null;
       }
       log("business result", data ? "found" : "none");
-      setBusiness(data as Business | null);
+      return data as Business | null;
     } catch (err) {
       log("fetchBusiness catch", err);
-      setBusiness(null);
+      return null;
     }
-  };
+  }, []);
 
-  const refreshBusiness = async () => {
-    if (user) await fetchBusiness(user.id);
-  };
+  const loadUserData = useCallback(async (currentSession: Session | null) => {
+    log("loadUserData", currentSession ? "has session" : "no session");
 
-  const handleSession = async (newSession: Session | null) => {
-    if (handlingRef.current) return;
-    handlingRef.current = true;
-    try {
-      log("handleSession", newSession ? "authenticated" : "no session");
-      setAuthError(null);
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
-      if (newSession?.user) {
-        await Promise.all([
-          checkAdmin(newSession.user.id, newSession.user.email || ""),
-          fetchBusiness(newSession.user.id),
-        ]);
-      } else {
+    if (!currentSession?.user) {
+      log("no user in session, clearing state");
+      if (mountedRef.current) {
+        setSession(null);
+        setUser(null);
         setBusiness(null);
         setIsAdmin(false);
+        setIsLoading(false);
+        setAuthError(null);
+      }
+      return;
+    }
+
+    if (mountedRef.current) {
+      setSession(currentSession);
+      setUser(currentSession.user);
+      setAuthError(null);
+    }
+
+    try {
+      const [adminResult, businessResult] = await Promise.all([
+        checkAdmin(currentSession.user.id, currentSession.user.email || ""),
+        fetchBusiness(currentSession.user.id),
+      ]);
+
+      if (mountedRef.current) {
+        setIsAdmin(adminResult);
+        setBusiness(businessResult);
+        log("user data loaded", { isAdmin: adminResult, hasBusiness: !!businessResult });
       }
     } catch (err) {
-      log("handleSession error", err);
-      setAuthError("Erro ao carregar dados do usuário.");
+      log("loadUserData error", err);
+      if (mountedRef.current) {
+        setAuthError("Falha ao carregar dados da conta. Tente novamente.");
+      }
     } finally {
-      setIsLoading(false);
-      handlingRef.current = false;
+      if (mountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [checkAdmin, fetchBusiness]);
 
-  const initAuth = () => {
-    setIsLoading(true);
-    setAuthError(null);
-    initializedRef.current = true;
+  const refreshBusiness = useCallback(async () => {
+    if (user) {
+      const biz = await fetchBusiness(user.id);
+      if (mountedRef.current) setBusiness(biz);
+    }
+  }, [user, fetchBusiness]);
 
-    const timeout = setTimeout(() => {
-      log("timeout reached, forcing isLoading=false");
-      setIsLoading(false);
-      if (!session && !user) {
-        setAuthError(null); // No session = just show login
+  useEffect(() => {
+    mountedRef.current = true;
+    const initId = ++initCountRef.current;
+    log("init #" + initId);
+
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    // Safety timeout: if auth takes too long, stop loading
+    timeoutId = setTimeout(() => {
+      if (initId !== initCountRef.current) return; // stale
+      log("timeout reached #" + initId);
+      if (mountedRef.current) {
+        setIsLoading(false);
+        // Don't set error if we simply have no session — just let ProtectedRoute redirect
       }
     }, AUTH_TIMEOUT_MS);
 
+    // 1. Set up listener FIRST (Supabase best practice)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, newSession) => {
-        log("onAuthStateChange", _event);
-        await handleSession(newSession);
-        clearTimeout(timeout);
+      async (event, newSession) => {
+        if (initId !== initCountRef.current) return; // stale
+        log("onAuthStateChange", event, newSession ? "has session" : "no session");
+
+        // For SIGNED_OUT, clear immediately
+        if (event === "SIGNED_OUT") {
+          if (mountedRef.current) {
+            setSession(null);
+            setUser(null);
+            setBusiness(null);
+            setIsAdmin(false);
+            setIsLoading(false);
+            setAuthError(null);
+          }
+          clearTimeout(timeoutId);
+          return;
+        }
+
+        // For other events (SIGNED_IN, TOKEN_REFRESHED, etc.), load user data
+        if (newSession) {
+          await loadUserData(newSession);
+          clearTimeout(timeoutId);
+        }
       }
     );
 
+    // 2. Then check existing session
     supabase.auth.getSession().then(({ data: { session: currentSession }, error }) => {
-      log("getSession result", currentSession ? "has session" : "no session", error ? error.message : "");
+      if (initId !== initCountRef.current) return; // stale
+      log("getSession result", currentSession ? "has session" : "no session", error?.message || "");
+
       if (error) {
         log("getSession error", error);
-        setIsLoading(false);
-        clearTimeout(timeout);
+        if (mountedRef.current) {
+          setIsLoading(false);
+          setAuthError("Erro ao restaurar sessão. Tente novamente.");
+        }
+        clearTimeout(timeoutId);
         return;
       }
-      handleSession(currentSession).then(() => clearTimeout(timeout));
+
+      // If no session, just stop loading (onAuthStateChange won't fire for no-session)
+      if (!currentSession) {
+        log("no existing session");
+        if (mountedRef.current) {
+          setIsLoading(false);
+        }
+        clearTimeout(timeoutId);
+        return;
+      }
+
+      // If we have a session, load data
+      // Note: onAuthStateChange may also fire INITIAL_SESSION — the last call wins
+      loadUserData(currentSession).then(() => {
+        clearTimeout(timeoutId);
+      });
     }).catch((err) => {
+      if (initId !== initCountRef.current) return;
       log("getSession catch", err);
-      setIsLoading(false);
-      clearTimeout(timeout);
+      if (mountedRef.current) {
+        setIsLoading(false);
+        setAuthError("Erro de conexão. Verifique sua internet e tente novamente.");
+      }
+      clearTimeout(timeoutId);
     });
 
     return () => {
+      log("cleanup #" + initId);
+      mountedRef.current = false;
       subscription.unsubscribe();
-      clearTimeout(timeout);
+      clearTimeout(timeoutId);
     };
-  };
+  }, [loadUserData]);
 
-  useEffect(() => {
-    if (initializedRef.current) return;
-    return initAuth();
-  }, []);
+  const retryAuth = useCallback(() => {
+    log("retryAuth");
+    mountedRef.current = true;
+    setIsLoading(true);
+    setAuthError(null);
+    // Force re-init by incrementing counter (will trigger useEffect re-run via loadUserData identity)
+    // Instead, manually re-fetch
+    const doRetry = async () => {
+      try {
+        const { data: { session: s }, error } = await supabase.auth.getSession();
+        if (error) {
+          log("retryAuth getSession error", error);
+          if (mountedRef.current) {
+            setAuthError("Erro ao restaurar sessão. Tente novamente.");
+            setIsLoading(false);
+          }
+          return;
+        }
+        await loadUserData(s);
+      } catch (err) {
+        log("retryAuth catch", err);
+        if (mountedRef.current) {
+          setAuthError("Erro de conexão. Verifique sua internet.");
+          setIsLoading(false);
+        }
+      }
+    };
+    doRetry();
+  }, [loadUserData]);
 
-  const retryAuth = () => {
-    initializedRef.current = false;
-    handlingRef.current = false;
-    initAuth();
-  };
-
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
+    log("signOut");
     await supabase.auth.signOut();
-    setUser(null);
-    setSession(null);
-    setBusiness(null);
-    setIsAdmin(false);
-  };
+    if (mountedRef.current) {
+      setUser(null);
+      setSession(null);
+      setBusiness(null);
+      setIsAdmin(false);
+    }
+  }, []);
 
   return (
     <AuthContext.Provider value={{ user, session, business, isAdmin, isLoading, authError, signOut, refreshBusiness, retryAuth }}>
