@@ -1,53 +1,27 @@
-import { Link, Outlet, useLocation, Navigate } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import {
   LayoutDashboard, Calendar, CalendarCheck, Users, UserPlus, Settings,
   LogOut, Menu, Shield, Scissors, Link2, Image, Sun, Moon, CreditCard
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTheme } from "@/contexts/ThemeContext";
-import { supabase } from "@/integrations/supabase/client";
 import { getBusinessLabels } from "@/lib/businessLabels";
 
 const DashboardLayout = () => {
   const location = useLocation();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const { signOut, business, isAdmin, user } = useAuth();
+  const { signOut, business, isAdmin, accessStatus } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const [accessBlocked, setAccessBlocked] = useState(false);
-  const [accessLoading, setAccessLoading] = useState(true);
 
   const labels = getBusinessLabels(business?.industry, business?.profession_subtype);
 
-  useEffect(() => {
-    if (!user) return;
-    supabase
-      .from("access_control")
-      .select("status")
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        const status = (data as any)?.status;
-        if (status && status !== "active" && status !== "trial") {
-          setAccessBlocked(true);
-        }
-        setAccessLoading(false);
-      });
-  }, [user]);
-
-  // No longer redirect to onboarding — business setup is optional
-
-  if (accessLoading) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
-      </div>
-    );
-  }
-
   const isPlansPage = location.pathname === "/dashboard/plans";
+
+  // Access blocked — from AuthContext, no extra query needed
+  const accessBlocked = accessStatus && accessStatus !== "active" && accessStatus !== "trial";
 
   if (accessBlocked && !isAdmin && !isPlansPage) {
     return (
