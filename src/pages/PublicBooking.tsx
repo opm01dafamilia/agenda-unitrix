@@ -39,6 +39,10 @@ const PublicBooking = () => {
   const [timeBlocks, setTimeBlocks] = useState<TimeBlockEntry[]>([]);
   const [dayAppointments, setDayAppointments] = useState<AppointmentEntry[]>([]);
 
+  // Service availability
+  const [serviceAvailDays, setServiceAvailDays] = useState<number[]>([]);
+  const [serviceBlockedPeriods, setServiceBlockedPeriods] = useState<{block_start: string; block_end: string}[]>([]);
+
   const [referencePhoto, setReferencePhoto] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
@@ -104,6 +108,23 @@ const PublicBooking = () => {
       setTimeBlocks(tbRes.data || []);
     });
   }, [selectedProfessional]);
+
+  // Fetch service availability when service is selected
+  useEffect(() => {
+    const serviceId = detailsForm.serviceId;
+    if (!serviceId || !business) {
+      setServiceAvailDays([]);
+      setServiceBlockedPeriods([]);
+      return;
+    }
+    Promise.all([
+      supabase.from("service_available_days").select("weekday").eq("service_id", serviceId),
+      supabase.from("service_blocked_periods").select("block_start, block_end").eq("service_id", serviceId),
+    ]).then(([daysRes, blocksRes]) => {
+      setServiceAvailDays((daysRes.data || []).map((d: any) => d.weekday));
+      setServiceBlockedPeriods(blocksRes.data || []);
+    });
+  }, [detailsForm.serviceId, business]);
 
   useEffect(() => {
     if (!selectedDate || !business) { setDayAppointments([]); return; }
@@ -426,7 +447,15 @@ const PublicBooking = () => {
               <div className="space-y-4">
                 <h2 className="font-semibold">Escolha data e horário</h2>
                 <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} locale={ptBR}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  disabled={(date) => {
+                    if (date < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+                    // Filter by service available days (if configured)
+                    if (serviceAvailDays.length > 0 && !serviceAvailDays.includes(date.getDay())) return true;
+                    // Filter by service blocked periods
+                    const dateStr = format(date, "yyyy-MM-dd");
+                    if (serviceBlockedPeriods.some(b => dateStr >= b.block_start && dateStr <= b.block_end)) return true;
+                    return false;
+                  }}
                   className="rounded-md border mx-auto pointer-events-auto" />
                 {selectedDate && (
                   <>

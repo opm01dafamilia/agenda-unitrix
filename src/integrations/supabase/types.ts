@@ -604,6 +604,107 @@ export type Database = {
         }
         Relationships: []
       }
+      service_available_days: {
+        Row: {
+          business_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          service_id: string
+          weekday: number
+        }
+        Insert: {
+          business_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          service_id: string
+          weekday: number
+        }
+        Update: {
+          business_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          service_id?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_available_days_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_available_days_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_available_days_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_blocked_periods: {
+        Row: {
+          block_end: string
+          block_start: string
+          business_id: string
+          created_at: string
+          id: string
+          reason: string | null
+          service_id: string
+        }
+        Insert: {
+          block_end: string
+          block_start: string
+          business_id: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          service_id: string
+        }
+        Update: {
+          block_end?: string
+          block_start?: string
+          business_id?: string
+          created_at?: string
+          id?: string
+          reason?: string | null
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_blocked_periods_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_blocked_periods_business_id_fkey"
+            columns: ["business_id"]
+            isOneToOne: false
+            referencedRelation: "businesses_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_blocked_periods_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       services: {
         Row: {
           active: boolean | null
