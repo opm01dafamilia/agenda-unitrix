@@ -39,6 +39,10 @@ const PublicBooking = () => {
   const [timeBlocks, setTimeBlocks] = useState<TimeBlockEntry[]>([]);
   const [dayAppointments, setDayAppointments] = useState<AppointmentEntry[]>([]);
 
+  // Service availability
+  const [serviceAvailDays, setServiceAvailDays] = useState<number[]>([]);
+  const [serviceBlockedPeriods, setServiceBlockedPeriods] = useState<{block_start: string; block_end: string}[]>([]);
+
   const [referencePhoto, setReferencePhoto] = useState<File | null>(null);
   const [referencePreview, setReferencePreview] = useState<string | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
