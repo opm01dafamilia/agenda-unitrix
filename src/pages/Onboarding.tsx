@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,6 +7,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { designServiceSeeds } from "@/lib/businessLabels";
+
+const log = (...args: any[]) => {
+  if (import.meta.env.DEV) console.log("[Onboarding]", new Date().toISOString().slice(11, 23), ...args);
+};
 
 const industries = [
   { value: "tattoo", label: "Tatuador", emoji: "🎨" },
@@ -31,6 +35,7 @@ const Onboarding = () => {
   const navigate = useNavigate();
   const { user, refreshBusiness } = useAuth();
   const [loading, setLoading] = useState(false);
+  const submittingRef = useRef(false);
   const [form, setForm] = useState({
     name: "",
     industry: "",
@@ -46,7 +51,6 @@ const Onboarding = () => {
     const seeds = designServiceSeeds[subtype];
     if (!seeds) return;
 
-    // Check if services already exist (idempotent)
     const { data: existing } = await supabase
       .from("services")
       .select("name")
@@ -69,6 +73,8 @@ const Onboarding = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingRef.current || loading) return;
+
     if (!form.name || !form.industry || !form.whatsapp || !form.city) {
       toast.error("Preencha todos os campos");
       return;
@@ -77,9 +83,15 @@ const Onboarding = () => {
       toast.error("Selecione a subcategoria");
       return;
     }
-    if (!user) return;
+    if (!user) {
+      toast.error("Sessão expirada. Faça login novamente.");
+      return;
+    }
 
+    submittingRef.current = true;
     setLoading(true);
+    log("creating business", form.name);
+
     try {
       const slug = form.name
         .toLowerCase()
@@ -98,20 +110,34 @@ const Onboarding = () => {
         email: user.email || "",
         city: form.city,
       }).select("id").single();
-      if (error) throw error;
 
-      // Seed default services for design businesses
+      if (error) {
+        log("insert error", error.message);
+        throw error;
+      }
+
+      log("business created", newBiz.id);
+
       if (form.industry === "design" && form.subtype && newBiz) {
         await seedDesignServices(newBiz.id, form.subtype);
       }
 
       await refreshBusiness();
+      log("refreshBusiness done, navigating");
       toast.success("Negócio criado com sucesso!");
       navigate("/dashboard");
     } catch (err: any) {
-      toast.error(err.message || "Erro ao criar negócio");
+      log("submit error", err?.message);
+      if (err?.message?.includes("duplicate key") || err?.message?.includes("unique")) {
+        toast.error("Você já possui um negócio cadastrado.");
+      } else if (err?.message?.includes("fetch") || err?.message?.includes("Failed")) {
+        toast.error("Erro de conexão. Verifique sua internet e tente novamente.");
+      } else {
+        toast.error(err.message || "Erro ao criar negócio. Tente novamente.");
+      }
     } finally {
       setLoading(false);
+      submittingRef.current = false;
     }
   };
 

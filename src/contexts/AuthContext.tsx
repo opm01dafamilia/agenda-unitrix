@@ -50,7 +50,7 @@ export const useAuth = () => {
 };
 
 const ADMIN_EMAILS = ["casuplemento@gmail.com", "lp070087@gmail.com"];
-const AUTH_TIMEOUT_MS = 12000;
+const AUTH_TIMEOUT_MS = 10000;
 
 const log = (...args: any[]) => {
   if (import.meta.env.DEV) console.log("[Auth]", new Date().toISOString().slice(11, 23), ...args);
@@ -65,10 +65,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const mountedRef = useRef(true);
-  const loadingRef = useRef(false); // prevent concurrent loadUserData
+  const loadingRef = useRef(false);
 
   const checkAdmin = useCallback(async (userId: string, email: string): Promise<boolean> => {
-    log("checkAdmin", email);
     if (ADMIN_EMAILS.includes(email)) return true;
     try {
       const { data } = await supabase
@@ -78,8 +77,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq("role", "adm")
         .maybeSingle();
       return !!data;
-    } catch (err) {
-      log("checkAdmin error", err);
+    } catch {
       return false;
     }
   }, []);
@@ -93,28 +91,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         .eq("owner_id", userId)
         .maybeSingle();
       if (error) {
-        log("fetchBusiness error", error);
+        log("fetchBusiness error", error.message);
         return null;
       }
-      log("business result", data ? `found (is_active=${data.is_active})` : "none");
       return data as Business | null;
-    } catch (err) {
-      log("fetchBusiness catch", err);
+    } catch (err: any) {
+      log("fetchBusiness catch", err?.message);
       return null;
     }
   }, []);
 
   const loadUserData = useCallback(async (currentSession: Session | null) => {
-    // Prevent concurrent loads
     if (loadingRef.current) {
       log("loadUserData skipped — already loading");
       return;
     }
 
-    log("loadUserData", currentSession ? "has session" : "no session");
-
     if (!currentSession?.user) {
-      log("no user in session, clearing state");
+      log("no session, clearing");
       if (mountedRef.current) {
         setSession(null);
         setUser(null);
@@ -128,6 +122,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     loadingRef.current = true;
+    log("loadUserData start", currentSession.user.email);
 
     if (mountedRef.current) {
       setSession(currentSession);
@@ -144,13 +139,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       if (mountedRef.current) {
         setIsAdmin(adminResult);
         setBusiness(businessResult);
-        // Check if business is blocked
         const blocked = businessResult ? businessResult.is_active === false : false;
         setIsBlocked(blocked);
-        log("user data loaded", { isAdmin: adminResult, hasBusiness: !!businessResult, isBlocked: blocked });
+        log("loadUserData done", { isAdmin: adminResult, hasBusiness: !!businessResult, isBlocked: blocked });
       }
-    } catch (err) {
-      log("loadUserData error", err);
+    } catch (err: any) {
+      log("loadUserData error", err?.message);
       if (mountedRef.current) {
         setAuthError("Falha ao carregar dados da conta. Tente novamente.");
       }
@@ -164,25 +158,23 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const refreshBusiness = useCallback(async () => {
     if (!user) return;
-    log("refreshBusiness start");
-
-    // Try up to 2 times with a small delay (handles DB commit timing)
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    log("refreshBusiness");
+    for (let attempt = 1; attempt <= 3; attempt++) {
       const biz = await fetchBusiness(user.id);
       if (biz) {
-        log("refreshBusiness success on attempt", attempt);
+        log("refreshBusiness found on attempt", attempt);
         if (mountedRef.current) {
           setBusiness(biz);
           setIsBlocked(biz.is_active === false);
         }
         return;
       }
-      if (attempt < 2) {
-        log("refreshBusiness attempt", attempt, "returned null, retrying...");
-        await new Promise(r => setTimeout(r, 500));
+      if (attempt < 3) {
+        log("refreshBusiness retry", attempt);
+        await new Promise(r => setTimeout(r, 600));
       }
     }
-    log("refreshBusiness: business not found after retries");
+    log("refreshBusiness: not found after retries");
   }, [user, fetchBusiness]);
 
   useEffect(() => {
@@ -191,18 +183,26 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     log("init");
 
     let timeoutId: ReturnType<typeof setTimeout>;
-    let initialLoadDone = false;
+    let resolved = false;
 
-    // Safety timeout
+    const markResolved = () => {
+      if (!resolved) {
+        resolved = true;
+        clearTimeout(timeoutId);
+      }
+    };
+
+    // Safety timeout — force loading=false
     timeoutId = setTimeout(() => {
-      if (!initialLoadDone && mountedRef.current) {
-        log("timeout reached — forcing isLoading=false");
+      if (!resolved && mountedRef.current) {
+        log("TIMEOUT — forcing isLoading=false");
         loadingRef.current = false;
         setIsLoading(false);
+        setAuthError("Tempo limite excedido. Tente novamente.");
       }
     }, AUTH_TIMEOUT_MS);
 
-    // 1. Set up listener FIRST
+    // 1. Listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         log("onAuthStateChange", event);
@@ -217,60 +217,45 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setIsLoading(false);
             setAuthError(null);
           }
-          initialLoadDone = true;
-          clearTimeout(timeoutId);
+          markResolved();
           return;
         }
 
-        // For INITIAL_SESSION, SIGNED_IN, TOKEN_REFRESHED
         if (newSession) {
           await loadUserData(newSession);
-          initialLoadDone = true;
-          clearTimeout(timeoutId);
+          markResolved();
         }
       }
     );
 
-    // 2. Check existing session (fallback for when onAuthStateChange doesn't fire)
-    supabase.auth.getSession().then(({ data: { session: currentSession }, error }) => {
-      log("getSession result", currentSession ? "has session" : "no session", error?.message || "");
+    // 2. getSession fallback
+    supabase.auth.getSession().then(({ data: { session: s }, error }) => {
+      log("getSession", s ? "has session" : "no session", error?.message || "");
 
       if (error) {
-        log("getSession error", error);
         if (mountedRef.current) {
           setIsLoading(false);
           setAuthError("Erro ao restaurar sessão. Tente novamente.");
         }
-        initialLoadDone = true;
-        clearTimeout(timeoutId);
+        markResolved();
         return;
       }
 
-      // If no session, stop loading
-      if (!currentSession) {
-        log("no existing session");
-        if (mountedRef.current) {
-          setIsLoading(false);
-        }
-        initialLoadDone = true;
-        clearTimeout(timeoutId);
+      if (!s) {
+        if (mountedRef.current) setIsLoading(false);
+        markResolved();
         return;
       }
 
-      // If we have a session but onAuthStateChange hasn't loaded yet, load now
-      // The loadingRef guard prevents double-loading if onAuthStateChange already started
-      loadUserData(currentSession).then(() => {
-        initialLoadDone = true;
-        clearTimeout(timeoutId);
-      });
+      // Load if not already loaded by onAuthStateChange
+      loadUserData(s).then(markResolved);
     }).catch((err) => {
       log("getSession catch", err);
       if (mountedRef.current) {
         setIsLoading(false);
-        setAuthError("Erro de conexão. Verifique sua internet e tente novamente.");
+        setAuthError("Erro de conexão. Verifique sua internet.");
       }
-      initialLoadDone = true;
-      clearTimeout(timeoutId);
+      markResolved();
     });
 
     return () => {
@@ -288,27 +273,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLoading(true);
     setAuthError(null);
 
-    const doRetry = async () => {
-      try {
-        const { data: { session: s }, error } = await supabase.auth.getSession();
-        if (error) {
-          log("retryAuth error", error);
-          if (mountedRef.current) {
-            setAuthError("Erro ao restaurar sessão. Tente novamente.");
-            setIsLoading(false);
-          }
-          return;
-        }
-        await loadUserData(s);
-      } catch (err) {
-        log("retryAuth catch", err);
+    supabase.auth.getSession().then(({ data: { session: s }, error }) => {
+      if (error) {
         if (mountedRef.current) {
-          setAuthError("Erro de conexão. Verifique sua internet.");
+          setAuthError("Erro ao restaurar sessão.");
           setIsLoading(false);
         }
+        return;
       }
-    };
-    doRetry();
+      loadUserData(s);
+    }).catch(() => {
+      if (mountedRef.current) {
+        setAuthError("Erro de conexão.");
+        setIsLoading(false);
+      }
+    });
   }, [loadUserData]);
 
   const signOut = useCallback(async () => {
