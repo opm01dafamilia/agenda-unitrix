@@ -15,6 +15,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const DashboardHome = () => {
+  const navigate = useNavigate();
   const { business, user } = useAuth();
   const [stats, setStats] = useState({ today: 0, week: 0, clients: 0, pending: 0, completed: 0 });
   const [upcoming, setUpcoming] = useState<any[]>([]);
