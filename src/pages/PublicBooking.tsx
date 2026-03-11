@@ -109,6 +109,23 @@ const PublicBooking = () => {
     });
   }, [selectedProfessional]);
 
+  // Fetch service availability when service is selected
+  useEffect(() => {
+    const serviceId = detailsForm.serviceId;
+    if (!serviceId || !business) {
+      setServiceAvailDays([]);
+      setServiceBlockedPeriods([]);
+      return;
+    }
+    Promise.all([
+      supabase.from("service_available_days").select("weekday").eq("service_id", serviceId),
+      supabase.from("service_blocked_periods").select("block_start, block_end").eq("service_id", serviceId),
+    ]).then(([daysRes, blocksRes]) => {
+      setServiceAvailDays((daysRes.data || []).map((d: any) => d.weekday));
+      setServiceBlockedPeriods(blocksRes.data || []);
+    });
+  }, [detailsForm.serviceId, business]);
+
   useEffect(() => {
     if (!selectedDate || !business) { setDayAppointments([]); return; }
     const dateStr = format(selectedDate, "yyyy-MM-dd");
