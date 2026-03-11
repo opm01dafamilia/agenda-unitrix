@@ -447,7 +447,15 @@ const PublicBooking = () => {
               <div className="space-y-4">
                 <h2 className="font-semibold">Escolha data e horário</h2>
                 <Calendar mode="single" selected={selectedDate} onSelect={setSelectedDate} locale={ptBR}
-                  disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                  disabled={(date) => {
+                    if (date < new Date(new Date().setHours(0, 0, 0, 0))) return true;
+                    // Filter by service available days (if configured)
+                    if (serviceAvailDays.length > 0 && !serviceAvailDays.includes(date.getDay())) return true;
+                    // Filter by service blocked periods
+                    const dateStr = format(date, "yyyy-MM-dd");
+                    if (serviceBlockedPeriods.some(b => dateStr >= b.block_start && dateStr <= b.block_end)) return true;
+                    return false;
+                  }}
                   className="rounded-md border mx-auto pointer-events-auto" />
                 {selectedDate && (
                   <>
