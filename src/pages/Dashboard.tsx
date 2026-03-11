@@ -64,6 +64,20 @@ const DashboardHome = () => {
     { label: "Concluídos", value: stats.completed, icon: CheckCircle },
   ];
 
+  if (!business) {
+    return (
+      <div className="animate-fade-in">
+        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+        <div className="p-8 rounded-xl border border-dashed border-border text-center">
+          <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+          <h2 className="text-lg font-semibold mb-2">Você ainda não configurou seu negócio</h2>
+          <p className="text-muted-foreground text-sm mb-4">Complete a configuração para liberar todos os recursos.</p>
+          <Button onClick={() => navigate("/onboarding")}>Configurar agora</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-in">
       <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
