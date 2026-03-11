@@ -1,7 +1,8 @@
-import { Calendar, Clock, Users, CheckCircle, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Users, CheckCircle, AlertCircle, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
