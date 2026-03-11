@@ -35,6 +35,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
   isBlocked: boolean;
+  accessStatus: string | null;
   authError: string | null;
   signOut: () => Promise<void>;
   refreshBusiness: () => Promise<void>;
@@ -50,7 +51,7 @@ export const useAuth = () => {
 };
 
 const ADMIN_EMAILS = ["casuplemento@gmail.com", "lp070087@gmail.com"];
-const AUTH_TIMEOUT_MS = 10000;
+const AUTH_TIMEOUT_MS = 6000;
 
 const log = (...args: any[]) => {
   if (import.meta.env.DEV) console.log("[Auth]", new Date().toISOString().slice(11, 23), ...args);
@@ -62,10 +63,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [business, setBusiness] = useState<Business | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isBlocked, setIsBlocked] = useState(false);
+  const [accessStatus, setAccessStatus] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const mountedRef = useRef(true);
-  const loadingRef = useRef(false);
+  // Track which session we've already loaded to avoid duplicate work
+  const loadedSessionIdRef = useRef<string | null>(null);
 
   const checkAdmin = useCallback(async (userId: string, email: string): Promise<boolean> => {
     if (ADMIN_EMAILS.includes(email)) return true;
@@ -83,17 +86,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const fetchBusiness = useCallback(async (userId: string): Promise<Business | null> => {
-    log("fetchBusiness", userId);
     try {
       const { data, error } = await supabase
         .from("businesses")
         .select("*")
         .eq("owner_id", userId)
         .maybeSingle();
-      if (error) {
-        log("fetchBusiness error", error.message);
-        return null;
-      }
+      if (error) { log("fetchBusiness error", error.message); return null; }
       return data as Business | null;
     } catch (err: any) {
       log("fetchBusiness catch", err?.message);
@@ -101,29 +100,41 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
   }, []);
 
-  const loadUserData = useCallback(async (currentSession: Session | null) => {
-    if (loadingRef.current) {
-      log("loadUserData skipped — already loading");
-      return;
+  const fetchAccessStatus = useCallback(async (userId: string): Promise<string | null> => {
+    try {
+      const { data } = await supabase
+        .from("access_control")
+        .select("status")
+        .eq("user_id", userId)
+        .maybeSingle();
+      return (data as any)?.status || null;
+    } catch {
+      return null;
     }
+  }, []);
 
+  const loadUserData = useCallback(async (currentSession: Session | null) => {
     if (!currentSession?.user) {
       log("no session, clearing");
       if (mountedRef.current) {
-        setSession(null);
-        setUser(null);
-        setBusiness(null);
-        setIsAdmin(false);
-        setIsBlocked(false);
-        setIsLoading(false);
-        setAuthError(null);
+        setSession(null); setUser(null); setBusiness(null);
+        setIsAdmin(false); setIsBlocked(false); setAccessStatus(null);
+        setIsLoading(false); setAuthError(null);
       }
       return;
     }
 
-    loadingRef.current = true;
+    // Skip if we already loaded this exact session
+    const sessionId = currentSession.access_token?.slice(-16) || currentSession.user.id;
+    if (loadedSessionIdRef.current === sessionId) {
+      log("session already loaded, skipping");
+      if (mountedRef.current) setIsLoading(false);
+      return;
+    }
+
     log("loadUserData start", currentSession.user.email);
 
+    // Immediately set user/session so ProtectedRoute sees authenticated user
     if (mountedRef.current) {
       setSession(currentSession);
       setUser(currentSession.user);
@@ -131,30 +142,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     try {
-      const [adminResult, businessResult] = await Promise.all([
+      // All three queries in parallel
+      const [adminResult, businessResult, accessResult] = await Promise.all([
         checkAdmin(currentSession.user.id, currentSession.user.email || ""),
         fetchBusiness(currentSession.user.id),
+        fetchAccessStatus(currentSession.user.id),
       ]);
 
+      log("loadUserData done", { isAdmin: adminResult, hasBusiness: !!businessResult, access: accessResult });
+
       if (mountedRef.current) {
+        loadedSessionIdRef.current = sessionId;
         setIsAdmin(adminResult);
         setBusiness(businessResult);
+        setAccessStatus(accessResult);
         const blocked = businessResult ? businessResult.is_active === false : false;
         setIsBlocked(blocked);
-        log("loadUserData done", { isAdmin: adminResult, hasBusiness: !!businessResult, isBlocked: blocked });
       }
     } catch (err: any) {
       log("loadUserData error", err?.message);
       if (mountedRef.current) {
-        setAuthError("Falha ao carregar dados da conta. Tente novamente.");
+        // Still let user in — show error but don't block
+        setAuthError("Falha ao carregar dados da conta.");
       }
     } finally {
-      loadingRef.current = false;
-      if (mountedRef.current) {
-        setIsLoading(false);
-      }
+      if (mountedRef.current) setIsLoading(false);
     }
-  }, [checkAdmin, fetchBusiness]);
+  }, [checkAdmin, fetchBusiness, fetchAccessStatus]);
 
   const refreshBusiness = useCallback(async () => {
     if (!user) return;
@@ -169,36 +183,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
         return;
       }
-      if (attempt < 3) {
-        log("refreshBusiness retry", attempt);
-        await new Promise(r => setTimeout(r, 600));
-      }
+      if (attempt < 3) await new Promise(r => setTimeout(r, 500));
     }
     log("refreshBusiness: not found after retries");
   }, [user, fetchBusiness]);
 
   useEffect(() => {
     mountedRef.current = true;
-    loadingRef.current = false;
+    loadedSessionIdRef.current = null;
     log("init");
 
     let timeoutId: ReturnType<typeof setTimeout>;
-    let resolved = false;
 
-    const markResolved = () => {
-      if (!resolved) {
-        resolved = true;
-        clearTimeout(timeoutId);
-      }
-    };
-
-    // Safety timeout — force loading=false
+    // Safety timeout
     timeoutId = setTimeout(() => {
-      if (!resolved && mountedRef.current) {
+      if (mountedRef.current) {
         log("TIMEOUT — forcing isLoading=false");
-        loadingRef.current = false;
         setIsLoading(false);
-        setAuthError("Tempo limite excedido. Tente novamente.");
+        if (!user) setAuthError("Tempo limite excedido. Tente novamente.");
       }
     }, AUTH_TIMEOUT_MS);
 
@@ -208,22 +210,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         log("onAuthStateChange", event);
 
         if (event === "SIGNED_OUT") {
+          loadedSessionIdRef.current = null;
           if (mountedRef.current) {
-            setSession(null);
-            setUser(null);
-            setBusiness(null);
-            setIsAdmin(false);
-            setIsBlocked(false);
-            setIsLoading(false);
-            setAuthError(null);
+            setSession(null); setUser(null); setBusiness(null);
+            setIsAdmin(false); setIsBlocked(false); setAccessStatus(null);
+            setIsLoading(false); setAuthError(null);
           }
-          markResolved();
           return;
         }
 
         if (newSession) {
           await loadUserData(newSession);
-          markResolved();
+          clearTimeout(timeoutId);
         }
       }
     );
@@ -237,25 +235,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setIsLoading(false);
           setAuthError("Erro ao restaurar sessão. Tente novamente.");
         }
-        markResolved();
+        clearTimeout(timeoutId);
         return;
       }
 
       if (!s) {
         if (mountedRef.current) setIsLoading(false);
-        markResolved();
+        clearTimeout(timeoutId);
         return;
       }
 
-      // Load if not already loaded by onAuthStateChange
-      loadUserData(s).then(markResolved);
+      loadUserData(s).then(() => clearTimeout(timeoutId));
     }).catch((err) => {
       log("getSession catch", err);
       if (mountedRef.current) {
         setIsLoading(false);
         setAuthError("Erro de conexão. Verifique sua internet.");
       }
-      markResolved();
+      clearTimeout(timeoutId);
     });
 
     return () => {
@@ -269,41 +266,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const retryAuth = useCallback(() => {
     log("retryAuth");
     mountedRef.current = true;
-    loadingRef.current = false;
+    loadedSessionIdRef.current = null;
     setIsLoading(true);
     setAuthError(null);
 
     supabase.auth.getSession().then(({ data: { session: s }, error }) => {
       if (error) {
-        if (mountedRef.current) {
-          setAuthError("Erro ao restaurar sessão.");
-          setIsLoading(false);
-        }
+        if (mountedRef.current) { setAuthError("Erro ao restaurar sessão."); setIsLoading(false); }
         return;
       }
       loadUserData(s);
     }).catch(() => {
-      if (mountedRef.current) {
-        setAuthError("Erro de conexão.");
-        setIsLoading(false);
-      }
+      if (mountedRef.current) { setAuthError("Erro de conexão."); setIsLoading(false); }
     });
   }, [loadUserData]);
 
   const signOut = useCallback(async () => {
     log("signOut");
+    loadedSessionIdRef.current = null;
     await supabase.auth.signOut();
     if (mountedRef.current) {
-      setUser(null);
-      setSession(null);
-      setBusiness(null);
-      setIsAdmin(false);
-      setIsBlocked(false);
+      setUser(null); setSession(null); setBusiness(null);
+      setIsAdmin(false); setIsBlocked(false); setAccessStatus(null);
     }
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, session, business, isAdmin, isBlocked, isLoading, authError, signOut, refreshBusiness, retryAuth }}>
+    <AuthContext.Provider value={{ user, session, business, isAdmin, isBlocked, accessStatus, isLoading, authError, signOut, refreshBusiness, retryAuth }}>
       {children}
     </AuthContext.Provider>
   );
