@@ -37,10 +37,7 @@ const DashboardLayout = () => {
       });
   }, [user]);
 
-  // ProtectedRoute already handles onboarding redirect, but keep as safety net
-  if (!business) {
-    return <Navigate to="/onboarding" replace />;
-  }
+  // No longer redirect to onboarding — business setup is optional
 
   if (accessLoading) {
     return (
