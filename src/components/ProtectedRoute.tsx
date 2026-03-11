@@ -60,14 +60,10 @@ export const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
     return <Navigate to="/dashboard/plans" replace />;
   }
 
+  // If user already has a business and tries to access onboarding, redirect to dashboard
   if (business && location.pathname === "/onboarding") {
     log("has business → /dashboard");
     return <Navigate to="/dashboard" replace />;
-  }
-
-  if (!business && location.pathname !== "/onboarding") {
-    log("no business → /onboarding");
-    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;

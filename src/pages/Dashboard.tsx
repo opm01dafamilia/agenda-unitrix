@@ -1,7 +1,8 @@
-import { Calendar, Clock, Users, CheckCircle, AlertCircle } from "lucide-react";
+import { Calendar, Clock, Users, CheckCircle, AlertCircle, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -14,6 +15,7 @@ const statusLabels: Record<string, string> = {
 };
 
 const DashboardHome = () => {
+  const navigate = useNavigate();
   const { business, user } = useAuth();
   const [stats, setStats] = useState({ today: 0, week: 0, clients: 0, pending: 0, completed: 0 });
   const [upcoming, setUpcoming] = useState<any[]>([]);
@@ -61,6 +63,20 @@ const DashboardHome = () => {
     { label: "Pendentes", value: stats.pending, icon: AlertCircle },
     { label: "Concluídos", value: stats.completed, icon: CheckCircle },
   ];
+
+  if (!business) {
+    return (
+      <div className="animate-fade-in">
+        <h1 className="text-2xl font-bold mb-6">Dashboard</h1>
+        <div className="p-8 rounded-xl border border-dashed border-border text-center">
+          <Building2 className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+          <h2 className="text-lg font-semibold mb-2">Você ainda não configurou seu negócio</h2>
+          <p className="text-muted-foreground text-sm mb-4">Complete a configuração para liberar todos os recursos.</p>
+          <Button onClick={() => navigate("/onboarding")}>Configurar agora</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-fade-in">
