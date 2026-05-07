@@ -206,7 +206,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     // 1. Listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         log("onAuthStateChange", event);
 
         if (event === "SIGNED_OUT") {
@@ -220,8 +220,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
 
         if (newSession) {
-          await loadUserData(newSession);
-          clearTimeout(timeoutId);
+          // CRITICAL: never await inside onAuthStateChange — it deadlocks the auth lock.
+          // Defer the data fetch so the callback returns immediately.
+          setTimeout(() => {
+            loadUserData(newSession).finally(() => clearTimeout(timeoutId));
+          }, 0);
         }
       }
     );
