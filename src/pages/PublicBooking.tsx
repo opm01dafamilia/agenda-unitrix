@@ -136,9 +136,17 @@ const PublicBooking = () => {
   useEffect(() => {
     if (!selectedDate || !business) { setDayAppointments([]); return; }
     const dateStr = format(selectedDate, "yyyy-MM-dd");
-    supabase.from("appointments").select("start_time, end_time, calculated_duration_minutes, status")
-      .eq("business_id", business.id).eq("appointment_date", dateStr).neq("status", "cancelled")
-      .then(({ data }) => setDayAppointments(data || []));
+    const fetchDay = () => {
+      supabase.from("appointments").select("start_time, end_time, calculated_duration_minutes, status")
+        .eq("business_id", business.id).eq("appointment_date", dateStr).neq("status", "cancelled")
+        .then(({ data }) => setDayAppointments(data || []));
+    };
+    fetchDay();
+    const channel = supabase
+      .channel(`appts-${business.id}-${dateStr}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${business.id}` }, () => fetchDay())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [selectedDate, business]);
 
   const serviceDuration = useMemo(() => {
