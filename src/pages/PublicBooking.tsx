@@ -61,17 +61,23 @@ const PublicBooking = () => {
 
   useEffect(() => {
     const fetchBusiness = async () => {
+      // Hard safety timeout — never stay loading forever
+      const safetyTimer = setTimeout(() => {
+        if (import.meta.env.DEV) console.warn("[PublicBooking] safety timeout — forcing loading=false");
+        setLoading(false);
+      }, 12000);
       try {
         if (import.meta.env.DEV) console.log("[PublicBooking] fetching slug:", slug);
         const { data: bizData, error: bizErr } = await supabase
           .from("businesses_public" as any).select("*").eq("slug", slug).maybeSingle();
         if (bizErr) { if (import.meta.env.DEV) console.error("[PublicBooking] biz error:", bizErr); }
         if (bizData) {
-          const { data: fullBiz } = await supabase.from("businesses")
-            .select("showcase_color").eq("id", (bizData as any).id).maybeSingle();
-          const merged = Object.assign({}, bizData, { showcase_color: (fullBiz as any)?.showcase_color || "gold" });
-          setBusiness(merged);
           const bizId = (bizData as any).id;
+          // Fetch showcase_color in parallel; non-blocking — fallback to gold if it fails
+          const showcaseRes = await supabase.from("businesses")
+            .select("showcase_color").eq("id", bizId).maybeSingle();
+          const merged = Object.assign({}, bizData, { showcase_color: (showcaseRes.data as any)?.showcase_color || "gold" });
+          setBusiness(merged);
           if (import.meta.env.DEV) console.log("[PublicBooking] loading services/pros for", bizId);
           const [galRes, prosRes, svcRes] = await Promise.all([
             supabase.from("gallery_images").select("*").eq("business_id", bizId).order("sort_order"),
@@ -90,6 +96,7 @@ const PublicBooking = () => {
       } catch (err) {
         if (import.meta.env.DEV) console.error("[PublicBooking] fetch error:", err);
       }
+      clearTimeout(safetyTimer);
       setLoading(false);
     };
     if (slug) fetchBusiness();
