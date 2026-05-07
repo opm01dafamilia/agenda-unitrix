@@ -318,7 +318,7 @@ const SettingsPage = () => {
         <div className="p-5 rounded-xl border border-border bg-card">
           <h2 className="font-semibold mb-3">Cor da vitrine</h2>
           <p className="text-sm text-muted-foreground mb-3">Escolha a cor de destaque do seu link público.</p>
-          <div className="flex gap-3">
+          <div className="flex gap-3 flex-wrap">
             {showcaseColors.map(c => (
               <button
                 key={c.value}
@@ -330,6 +330,30 @@ const SettingsPage = () => {
               </button>
             ))}
           </div>
+          <Button
+            onClick={async () => {
+              if (!business) return;
+              const prev = business.showcase_color || "gold";
+              if (prev === showcaseColor) { toast.info("Nenhuma alteração para salvar"); return; }
+              setSaving(true);
+              try {
+                const { error } = await supabase.from("businesses")
+                  .update({ showcase_color: showcaseColor } as any)
+                  .eq("id", business.id);
+                if (error) throw error;
+                toast.success("Cor da vitrine salva!");
+                await refreshBusiness();
+              } catch (err: any) {
+                toast.error(err.message || "Erro ao salvar cor");
+              } finally {
+                setSaving(false);
+              }
+            }}
+            disabled={saving || (business?.showcase_color || "gold") === showcaseColor}
+            className="mt-4 w-full sm:w-auto"
+          >
+            {saving ? "Salvando..." : "Salvar cor da vitrine"}
+          </Button>
         </div>
 
         {/* Address */}
