@@ -516,10 +516,12 @@ const PublicBooking = () => {
                             {slots.map(({ slot, available }) => (
                               <button key={slot} type="button" onClick={() => available && setSelectedTime(slot)}
                                 disabled={!available}
+                                title={!available ? "Horário indisponível" : undefined}
+                                aria-label={!available ? `${slot} - Horário indisponível` : slot}
                                 className={`p-2 rounded-lg border text-sm transition-colors ${
-                                  !available ? "border-destructive/30 bg-destructive/10 text-destructive cursor-not-allowed" : ""
+                                  !available ? "border-destructive/40 bg-destructive/15 text-destructive cursor-not-allowed opacity-70 line-through" : "hover:bg-accent"
                                 }`}
-                                style={selectedTime === slot ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
+                                style={selectedTime === slot && available ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
                                 {slot}
                               </button>
                             ))}
