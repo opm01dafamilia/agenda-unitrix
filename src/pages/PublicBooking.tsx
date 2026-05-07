@@ -136,9 +136,17 @@ const PublicBooking = () => {
   useEffect(() => {
     if (!selectedDate || !business) { setDayAppointments([]); return; }
     const dateStr = format(selectedDate, "yyyy-MM-dd");
-    supabase.from("appointments").select("start_time, end_time, calculated_duration_minutes, status")
-      .eq("business_id", business.id).eq("appointment_date", dateStr).neq("status", "cancelled")
-      .then(({ data }) => setDayAppointments(data || []));
+    const fetchDay = () => {
+      supabase.from("appointments").select("start_time, end_time, calculated_duration_minutes, status")
+        .eq("business_id", business.id).eq("appointment_date", dateStr).neq("status", "cancelled")
+        .then(({ data }) => setDayAppointments(data || []));
+    };
+    fetchDay();
+    const channel = supabase
+      .channel(`appts-${business.id}-${dateStr}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${business.id}` }, () => fetchDay())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, [selectedDate, business]);
 
   const serviceDuration = useMemo(() => {
@@ -208,19 +216,39 @@ const PublicBooking = () => {
         photoUrl = publicUrl;
       }
 
-      // Find or create client by whatsapp
+      // Anon cannot read clients (RLS); generate a client_id locally so we don't need .select() after insert.
       const whatsappClean = clientForm.whatsapp.replace(/\D/g, "");
-      const { data: existingClient } = await supabase.from("clients").select("id")
-        .eq("business_id", business.id).eq("whatsapp", whatsappClean).maybeSingle();
-      let clientId = existingClient?.id;
-      if (!clientId) {
-        const { data: newClient, error: clientErr } = await supabase.from("clients").insert({
-          business_id: business.id, name: clientForm.name,
-          cpf: whatsappClean, whatsapp: whatsappClean,
-          email: clientForm.email || null, city: clientForm.city || null,
-        }).select("id").single();
-        if (clientErr) throw clientErr;
-        clientId = newClient.id;
+      const clientId = (crypto as any).randomUUID ? (crypto as any).randomUUID() : `${Date.now()}-${Math.random()}`;
+      const { error: clientErr } = await supabase.from("clients").insert({
+        id: clientId,
+        business_id: business.id, name: clientForm.name,
+        cpf: whatsappClean, whatsapp: whatsappClean,
+        email: clientForm.email || null, city: clientForm.city || null,
+      });
+      if (clientErr) {
+        if (import.meta.env.DEV) console.error("[PublicBooking] client insert error:", clientErr);
+        throw clientErr;
+      }
+
+      // Re-check slot conflict right before insert (race-free best-effort)
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
+      const { data: conflicts } = await supabase.from("appointments")
+        .select("start_time, calculated_duration_minutes, status")
+        .eq("business_id", business.id).eq("appointment_date", dateStr).neq("status", "cancelled");
+      const startMin = (() => { const [h,m] = selectedTime.split(":").map(Number); return h*60+m; })();
+      const conflict = (conflicts || []).some((a: any) => {
+        if (!a.start_time) return false;
+        const [sh, sm] = a.start_time.split(":").map(Number);
+        const aStart = sh * 60 + sm;
+        const aDur = a.calculated_duration_minutes || 30;
+        return startMin < aStart + aDur && startMin + serviceDuration > aStart;
+      });
+      if (conflict) {
+        toast.error("Este horário acabou de ser reservado. Escolha outro.");
+        setDayAppointments(conflicts as any || []);
+        setSelectedTime("");
+        setSubmitting(false);
+        return;
       }
 
       const status = business.auto_accept_appointments ? "confirmed" : "pending";
@@ -229,6 +257,7 @@ const PublicBooking = () => {
         professional_id: selectedProfessional || null, service_id: detailsForm.serviceId || null,
         status, appointment_date: format(selectedDate, "yyyy-MM-dd"),
         start_time: selectedTime + ":00",
+        calculated_duration_minutes: serviceDuration,
         body_location: detailsForm.bodyLocation || null,
         size_cm: detailsForm.sizeCm ? parseFloat(detailsForm.sizeCm) : null,
         has_previous_tattoo: detailsForm.hasPrevious === "yes" ? true : detailsForm.hasPrevious === "no" ? false : null,
@@ -237,12 +266,15 @@ const PublicBooking = () => {
         client_whatsapp: whatsappClean,
         client_email: clientForm.email || null, client_city: clientForm.city || null,
       });
-      if (error) throw error;
+      if (error) {
+        if (import.meta.env.DEV) console.error("[PublicBooking] appointment insert error:", error);
+        throw error;
+      }
+      toast.success("Agendamento confirmado!");
       setDone(true);
     } catch (err: any) {
-      const msg = err.message?.includes("row-level security")
-        ? "Não foi possível salvar o agendamento. Tente novamente."
-        : err.message || "Erro ao agendar. Tente novamente em instantes.";
+      if (import.meta.env.DEV) console.error("[PublicBooking] submit error:", err);
+      const msg = err?.message || "Erro ao agendar. Tente novamente em instantes.";
       toast.error(msg);
     } finally {
       setSubmitting(false);
@@ -484,10 +516,12 @@ const PublicBooking = () => {
                             {slots.map(({ slot, available }) => (
                               <button key={slot} type="button" onClick={() => available && setSelectedTime(slot)}
                                 disabled={!available}
+                                title={!available ? "Horário indisponível" : undefined}
+                                aria-label={!available ? `${slot} - Horário indisponível` : slot}
                                 className={`p-2 rounded-lg border text-sm transition-colors ${
-                                  !available ? "border-destructive/30 bg-destructive/10 text-destructive cursor-not-allowed" : ""
+                                  !available ? "border-destructive/40 bg-destructive/15 text-destructive cursor-not-allowed opacity-70 line-through" : "hover:bg-accent"
                                 }`}
-                                style={selectedTime === slot ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
+                                style={selectedTime === slot && available ? { ...accentBorderStyle, ...accentBgLightStyle, ...accentStyle } : undefined}>
                                 {slot}
                               </button>
                             ))}

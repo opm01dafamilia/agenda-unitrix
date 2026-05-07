@@ -42,6 +42,7 @@ export function getBusinessLabels(industry?: string, subtype?: string | null) {
 
 /** Showcase color palette */
 export const showcaseColors = [
+  { value: "default", label: "Cor padrão", hsl: "240 5.9% 10%" },
   { value: "gold", label: "Dourado", hsl: "45 93% 47%" },
   { value: "green", label: "Verde", hsl: "142 71% 45%" },
   { value: "blue", label: "Azul", hsl: "217 91% 60%" },
@@ -50,6 +51,13 @@ export const showcaseColors = [
 ] as const;
 
 export function getShowcaseHSL(color: string): string {
+  if (color === "default") {
+    if (typeof window !== "undefined") {
+      const v = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim();
+      if (v) return v;
+    }
+    return "240 5.9% 10%";
+  }
   const found = showcaseColors.find(c => c.value === color);
   return found?.hsl || "45 93% 47%";
 }

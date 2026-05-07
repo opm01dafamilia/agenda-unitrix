@@ -42,8 +42,8 @@ const GalleryPage = () => {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || !business) return;
-    if (localGallery.length + files.length > 50) {
-      toast.error("Limite de 50 fotos atingido");
+    if (localGallery.length + files.length > 75) {
+      toast.error("Limite de 75 fotos atingido");
       return;
     }
     setUploading(true);
@@ -126,7 +126,7 @@ const GalleryPage = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold">{labels.gallery}</h1>
-          <p className="text-sm text-muted-foreground mt-1">{localGallery.length}/50 fotos • Aparece no link público</p>
+          <p className="text-sm text-muted-foreground mt-1">{localGallery.length}/75 fotos • Aparece no link público</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowPreview(!showPreview)}>
@@ -134,7 +134,7 @@ const GalleryPage = () => {
             {showPreview ? "Ocultar" : "Pré-visualizar"}
           </Button>
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleUpload} />
-          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading || localGallery.length >= 50}>
+          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()} disabled={uploading || localGallery.length >= 75}>
             <Upload className="w-4 h-4 mr-2" />{uploading ? "Enviando..." : "Adicionar"}
           </Button>
         </div>
